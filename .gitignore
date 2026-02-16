@@ -1,18 +1,26 @@
 # Virtual environment
 venv/
 
-# Python cache
+# Python
 __pycache__/
-*.pyc
-
-# Database
-db.sqlite3
+*.py[cod]
+*.sqlite3
 
 # Environment variables
 .env
 
-# VS Code
+# Logs
+*.log
+
+# VSCode
 .vscode/
 
-# Mac/Linux
+# PyCharm
+.idea/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Static files
+staticfiles/

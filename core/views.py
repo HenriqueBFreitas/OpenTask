@@ -10,10 +10,15 @@ from django.contrib.auth.models import User
 # Create your views here.
 
 class PageViewSet(ModelViewSet):
-    queryset = Page.objects.all()
     serializer_class = PageSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        return Page.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+        
 class LoginView(TokenObtainPairView):
     pass
 

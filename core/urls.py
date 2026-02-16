@@ -7,7 +7,7 @@ from rest_framework_simplejwt.views import (
 )
 
 router = DefaultRouter()
-router.register(r'pages', PageViewSet)
+router.register(r'pages', PageViewSet, basename='page')
 
 urlpatterns = router.urls
 
