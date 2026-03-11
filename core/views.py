@@ -4,7 +4,6 @@ from .models import Page
 from .serializers import PageSerializer
 
 
-
 class PageViewSet(ModelViewSet):
     serializer_class = PageSerializer
     permission_classes = [IsAuthenticated]
