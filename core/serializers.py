@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Page, Task
+from .models import Page
 
 class PageSerializer(serializers.ModelSerializer):
     class Meta:

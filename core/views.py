@@ -1,7 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
-from .models import Page, Task
-from .serializers import PageSerializer, TaskSerializer
+from .models import Page
+from .serializers import PageSerializer
 
 
 
