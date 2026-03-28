@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'core',
     'users',
+    'tasks',
 ]
 
 MIDDLEWARE = [
@@ -134,4 +135,11 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type',
+]
