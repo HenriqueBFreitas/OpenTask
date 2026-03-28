@@ -1,34 +1,7 @@
-# Virtual environment
-venv/
-
-# Python
-__pycache__/
-*.py[cod]
-*.sqlite3
-
-# Environment variables
-.env
-
-# Logs
-*.log
-
-# VSCode
-.vscode/
-
-# PyCharm
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Static files
-staticfiles/
-
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-node_modules/
+/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -41,11 +14,11 @@ node_modules/
 /coverage
 
 # next.js
-.next/
-out/
+/.next/
+/out/
 
 # production
-build/
+/build
 
 # misc
 .DS_Store
@@ -66,4 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
