@@ -1,7 +1,7 @@
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
-from .models import Task
-from .serializers import TaskSerializer
+from .models import Task, SubTask
+from .serializers import TaskSerializer, SubTaskSerializer
 
 class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
@@ -12,3 +12,10 @@ class TaskViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+class SubTaskViewSet(ModelViewSet):
+    serializer_class = SubTaskSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return SubTask.objects.filter(task__user=self.request.user)
