@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task,SubTask
+from .models import Task, SubTask
 
 class TaskSerializer(serializers.ModelSerializer):
 
@@ -11,17 +11,13 @@ class TaskSerializer(serializers.ModelSerializer):
 class SubTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubTask
-        fields = '__all__'
-
-class SubTaskSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SubTask
-        fields = '__all__'
+        fields = ['id', 'task', 'title', 'completed', 'created_at']
+        read_only_fields = ['created_at']
 
     def validate_task(self, value):
-        request = self.context['request']
+        request = self.context.get('request')
 
-        if value.user != request.user:
+        if request and value.user != request.user:
             raise serializers.ValidationError("Você não pode usar essa task.")
 
         return value
