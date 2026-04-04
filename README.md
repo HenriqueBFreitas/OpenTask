@@ -1,4 +1,4 @@
-StudyXP
+##StudyXP
 A full-stack study productivity app built with Django REST Framework and Next.js. It allows users to manage study pages, tasks, and subtasks with JWT-based authentication.
 
 Tech Stack
