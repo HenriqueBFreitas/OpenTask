@@ -64,3 +64,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#frontend
+frontend/node_modules/
+frontend/.next/
