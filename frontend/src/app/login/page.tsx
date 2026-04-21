@@ -14,6 +14,37 @@ export default function LoginPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
+  function validateFields() {
+    if (!username.trim()) {
+      setError('Informe seu nome de usuário.');
+      return false;
+    }
+    if (!isLogin) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email.trim()) {
+        setError('Informe seu e-mail.');
+        return false;
+      }
+      if (!emailRegex.test(email)) {
+        setError('E-mail inválido. Use o formato nome@dominio.com');
+        return false;
+      }
+    }
+    if (!password.trim()) {
+      setError('Informe sua senha.');
+      return false;
+    }
+    if (password.length < 8) {
+      setError('A senha precisa ter pelo menos 8 caracteres.');
+      return false;
+    }
+    if (!isLogin && password !== passwordConfirm) {
+      setError('As senhas não coincidem.');
+      return false;
+    }
+    return true;
+  }
+
   async function handleSubmit() {
   if (!username.trim() || !password.trim()) return;
   setLoading(true);
