@@ -1,4 +1,4 @@
-# StudyXP
+# OpenTask
  
 A full-stack study productivity app built with **Django REST Framework** and **Next.js**. It allows users to manage study pages, tasks, and subtasks with JWT-based authentication.
  
@@ -20,9 +20,7 @@ A full-stack study productivity app built with **Django REST Framework** and **N
 - Tailwind CSS
  
 ---
-
 ## Quick Start
-
 Prerequisites:
 Python 3.10+ and
 Node.js 18+
@@ -44,7 +42,7 @@ cd frontend && npm run dev
 ## Project Structure
  
 ```
-StudyXP/
+OpenTask/
 ├── backend/
 │   ├── config/        # Django project settings and URLs
 │   ├── core/          # Pages module (models, views, serializers)
