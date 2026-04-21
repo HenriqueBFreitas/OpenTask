@@ -5,8 +5,6 @@ from .views import PageViewSet
 router = DefaultRouter()
 router.register(r'pages', PageViewSet, basename='page')
 
-urlpatterns = router.urls
-
 urlpatterns = [
     path('', include(router.urls)),
 ]
