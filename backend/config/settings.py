@@ -2,6 +2,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
+from django.conf import settings
 
 load_dotenv()
 
@@ -97,9 +98,6 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    ),
 }
 
 SIMPLE_JWT = {
@@ -134,5 +132,6 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+DEFAULT_PERMISSION_CLASSES = [
+    'rest_framework.permissions.IsAuthenticated',
+]
