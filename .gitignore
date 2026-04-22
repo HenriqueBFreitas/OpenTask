@@ -68,3 +68,6 @@ next-env.d.ts
 #frontend
 frontend/node_modules/
 frontend/.next/
+
+**/migrations/
+!**/migrations/__init__.py
