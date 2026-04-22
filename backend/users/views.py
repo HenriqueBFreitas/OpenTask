@@ -11,9 +11,6 @@ from .models import CustomUser
 from .serializers import RegisterSerializer, EmailTokenObtainPairSerializer
 import requests
 
-class LoginView(TokenObtainPairView):
-    serializer_class = EmailTokenObtainPairSerializer
-
 class CheckUsernameView(APIView):
     permission_classes = [AllowAny]
 
@@ -73,7 +70,7 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if data.get('email_verified') != 'true':
+        if data.get('email_verified') is not True:
             return Response(
                 {'error': 'Email não verificado'},
                 status=status.HTTP_400_BAD_REQUEST
