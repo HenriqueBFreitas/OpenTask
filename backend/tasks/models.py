@@ -18,3 +18,11 @@ class SubTask(models.Model):
 
     def __str__(self):
         return self.title
+    
+class TaskImage(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='tasks/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Image for {self.task.title}"
