@@ -6,17 +6,25 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 from django.db import IntegrityError
-import requests
-
 from .utils import generate_unique_username
 from .models import CustomUser
 from .serializers import RegisterSerializer, EmailTokenObtainPairSerializer
+import requests
 
-
-class LoginView(TokenObtainPairView):
-    serializer_class = EmailTokenObtainPairSerializer
+class CheckUsernameView(APIView):
     permission_classes = [AllowAny]
 
+    def post(self, request):
+        username = request.data.get('username')
+
+        if not username:
+            return Response(
+                {'error': 'Username é obrigatório'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        exists = CustomUser.objects.filter(username=username).exists()
+        return Response({'exists': exists})
 
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
