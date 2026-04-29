@@ -8,7 +8,7 @@ urlpatterns = [
 
     path('api/core/', include('core.urls')),
     path('api/users/', include('users.urls')),
-    path('api/tasks/', include('tasks.urls')),
+    path('api/', include('tasks.urls')),
 ]
 
 if settings.DEBUG:
