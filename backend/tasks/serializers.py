@@ -44,4 +44,4 @@ class TaskSerializer(serializers.ModelSerializer):
             'images_data',
             'subtasks',
         ]
-        read_only_fields = ['user']
+        read_only_fields = ['id', 'user', 'created_at']
