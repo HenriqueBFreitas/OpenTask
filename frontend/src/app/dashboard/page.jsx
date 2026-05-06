@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import TasksView from '@/components/TaskView';
 
 const ExcalidrawWrapper = dynamic(
   () => import('./ExcalidrawWrapper'),
@@ -15,11 +16,11 @@ const ExcalidrawWrapper = dynamic(
 );
 
 const NAV = [
-  { id: 'whiteboard', icon: '✏️', label: 'Quadro' },
-  { id: 'tasks',      icon: '✓',  label: 'Tarefas' },
-  { id: 'docs',       icon: '📄', label: 'Docs' },
-  { id: 'members',    icon: '👥', label: 'Equipe' },
-  { id: 'settings',   icon: '⚙', label: 'Config' },
+  { id: 'whiteboard', icon: '', label: 'Quadro' },
+  { id: 'tasks',      icon: '',  label: 'Tarefas' },
+  { id: 'docs',       icon: '', label: 'Docs' },
+  { id: 'members',    icon: '', label: 'Equipe' },
+  { id: 'settings',   icon: '', label: 'Config' },
 ];
 
 function PlaceholderView({ label, icon }) {
@@ -124,10 +125,10 @@ export default function Dashboard() {
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', minHeight: 0 }}>
           {active === 'whiteboard' && <ExcalidrawWrapper />}
-          {active === 'tasks'      && <PlaceholderView label="Tarefas" icon="✓" />}
-          {active === 'docs'       && <PlaceholderView label="Documentos" icon="📄" />}
-          {active === 'members'    && <PlaceholderView label="Equipe" icon="👥" />}
-          {active === 'settings'   && <PlaceholderView label="Configurações" icon="⚙" />}
+          {active === 'tasks' && <TasksView />}
+          {active === 'docs'       && <PlaceholderView label="Documentos" icon="" />}
+          {active === 'members'    && <PlaceholderView label="Equipe" icon="" />}
+          {active === 'settings'   && <PlaceholderView label="Configurações" icon="" />}
         </div>
       </main>
     </div>
