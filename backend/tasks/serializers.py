@@ -6,6 +6,7 @@ class TaskImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskImage
         fields = ['id', 'image', 'uploaded_at']
+        read_only_fields = ['uploaded_at', 'id', 'user']
 
 
 class TaskImageUploadSerializer(serializers.Serializer):
@@ -21,7 +22,7 @@ class SubTaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubTask
         fields = ['id', 'task', 'title', 'completed', 'created_at']
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'id', 'user']
 
     def validate_task(self, value):
         request = self.context.get('request')
