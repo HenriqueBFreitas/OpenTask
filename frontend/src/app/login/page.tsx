@@ -1,6 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,92 +15,96 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const btnRef = useRef<HTMLDivElement>(null);
 
-  function validateFields() {
-    if (!username.trim()) {
-      setError('Informe seu nome de usuário.');
-      return false;
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (!(window as any).google || !btnRef.current) return;
+      (window as any).google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleResponse,
+      });
+      (window as any).google.accounts.id.renderButton(btnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: 384,
+        text: 'continue_with',
+        locale: 'pt-BR',
+      });
+    };
+    document.body.appendChild(script);
+    return () => document.body.removeChild(script);
+  }, []);
+
+  const handleGoogleResponse = async (response: any) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('http://localhost:8000/api/users/login/google/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: response.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Erro ao entrar com Google.'); return; }
+      localStorage.setItem('access_token', data.access);
+      localStorage.setItem('refresh_token', data.refresh);
+      document.cookie = `access=${data.access}; path=/; max-age=3600; SameSite=Lax`;
+      document.cookie = `refresh=${data.refresh}; path=/; max-age=604800; SameSite=Lax`;
+      router.push('/dashboard');
+    } catch {
+      setError('Não foi possível conectar ao servidor.');
+    } finally {
+      setLoading(false);
     }
-    if (!isLogin) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!email.trim()) {
-        setError('Informe seu e-mail.');
-        return false;
-      }
-      if (!emailRegex.test(email)) {
-        setError('E-mail inválido. Use o formato nome@dominio.com');
-        return false;
-      }
-    }
-    if (!password.trim()) {
-      setError('Informe sua senha.');
-      return false;
-    }
-    if (password.length < 8) {
-      setError('A senha precisa ter pelo menos 8 caracteres.');
-      return false;
-    }
-    if (!isLogin && password !== passwordConfirm) {
-      setError('As senhas não coincidem.');
-      return false;
-    }
-    return true;
-  }
+  };
 
   async function handleSubmit() {
-  if (!username.trim() || !password.trim()) return;
-  setLoading(true);
-  setError('');
-  setSuccess('');
-
-  try {
-    if (isLogin) {
-      const res = await fetch('http://localhost:8000/api/users/login/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || data.username?.[0] || 'Algo deu errado.');
-        return;
+    if (!username.trim() || !password.trim()) return;
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      if (isLogin) {
+        const res = await fetch('http://localhost:8000/api/users/login/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.detail || data.username?.[0] || 'Algo deu errado.'); return; }
+        localStorage.setItem('access_token', data.access);
+        localStorage.setItem('refresh_token', data.refresh);
+        document.cookie = `access=${data.access}; path=/`;
+        router.push('/dashboard');
+      } else {
+        const res = await fetch('http://localhost:8000/api/users/register/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email, password, password_confirm: passwordConfirm }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.detail || data.username?.[0] || 'Algo deu errado.'); return; }
+        setSuccess('Conta criada! Agora é só entrar.');
+        setIsLogin(true);
+        setUsername(''); setEmail(''); setPassword(''); setPasswordConfirm('');
       }
-      localStorage.setItem('access', data.access);
-      localStorage.setItem('refresh', data.refresh);
-      document.cookie = `access=${data.access}; path=/`;
-      router.push('/');
-
-    } else {
-      const res = await fetch('http://localhost:8000/api/users/register/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password, password_confirm: passwordConfirm }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || data.username?.[0] || 'Algo deu errado.');
-        return;
-      }
-      setSuccess('Conta criada! Agora é só entrar.');
-      setIsLogin(true);
-      setUsername('');
-      setEmail('');
-      setPassword('');
-      setPasswordConfirm('');
+    } catch {
+      setError('Não foi possível conectar ao servidor.');
+    } finally {
+      setLoading(false);
     }
-  } catch {
-    setError('Não foi possível conectar ao servidor.');
-  } finally {
-    setLoading(false);
   }
-}
 
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4"
       style={{ backgroundColor: '#f0ede8', backgroundImage: 'radial-gradient(#c8c4be 1px, transparent 1px)', backgroundSize: '20px 20px' }}
     >
-      {/* Logo */}
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-semibold text-gray-700 mt-3" style={{ fontFamily: 'var(--font-lora)' }}>
           {isLogin ? 'Entrar ou cadastrar-se' : 'Criar sua conta'}
@@ -106,143 +112,51 @@ export default function LoginPage() {
         <p className="text-sm text-gray-500 mt-1">Começe a se organizar com a OpenTask</p>
       </div>
 
-      {/* Card */}
       <div className="w-full max-w-sm">
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
-            <p className="text-red-500 text-sm text-center">{error}</p>
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl">
-            <p className="text-green-600 text-sm text-center">{success}</p>
-          </div>
-        )}
+        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl"><p className="text-red-500 text-sm text-center">{error}</p></div>}
+        {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl"><p className="text-green-600 text-sm text-center">{success}</p></div>}
 
         <div className="space-y-3">
-          {/* Username */}
-          <input
-            type="text"
-            placeholder="Digite seu usuário"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            disabled={loading}
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
-          />
+          <input type="text" placeholder="Digite seu usuário" value={username} onChange={(e) => setUsername(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm" />
+          <input type="email" placeholder="Digite seu email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm" />
 
-          {/* Email */}
-          <input
-            type="email"
-            placeholder="Digite seu email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            disabled={loading}
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
-          />
-
-          {/* Password */}
           <div className="relative">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Senha"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-              disabled={loading}
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-            >
-              {showPassword ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
+            <input type={showPassword ? 'text' : 'password'} placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10" />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+              {showPassword ? (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>)}
             </button>
           </div>
 
-          {/* Password Confirm (only for register) */}
           {!isLogin && (
             <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Confirme sua senha"
-                value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                disabled={loading}
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-              >
-                {showPassword ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
+              <input type={showPassword ? 'text' : 'password'} placeholder="Confirme sua senha" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
+                {showPassword ? (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>)}
               </button>
             </div>
           )}
 
-          {/* Submit */}
-          <button
-            onClick={handleSubmit}
-            disabled={!username.trim() || !password.trim() || loading}
-            className="w-full py-3 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 text-white text-sm font-medium rounded-xl transition-all active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                </svg>
-                {isLogin ? 'Entrando...' : 'Criando...'}
-              </>
-            ) : (
-              isLogin ? 'Entrar' : 'Criar conta'
-            )}
+          <button onClick={handleSubmit} disabled={!username.trim() || !password.trim() || loading} className="w-full py-3 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 text-white text-sm font-medium rounded-xl transition-all active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            {loading ? (<><svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>{isLogin ? 'Entrando...' : 'Criando...'}</>) : (isLogin ? 'Entrar' : 'Criar conta')}
           </button>
+
+          <div className="flex items-center gap-3 my-1">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400">ou</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <div ref={btnRef} className="flex justify-center" />
         </div>
 
-        {/* Switch */}
         <p className="text-center text-sm text-gray-500 mt-5">
           {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-          <button
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError('');
-              setSuccess('');
-              setUsername('');
-              setEmail('');
-              setPassword('');
-              setPasswordConfirm('');
-            }}
-            className="text-gray-700 font-semibold hover:underline cursor-pointer"
-          >
+          <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); setUsername(''); setEmail(''); setPassword(''); setPasswordConfirm(''); }} className="text-gray-700 font-semibold hover:underline cursor-pointer">
             {isLogin ? 'Cadastre-se' : 'Entrar'}
           </button>
         </p>
       </div>
 
-      {/* Footer */}
       <p className="mt-12 text-xs text-gray-400">OpenTask © 2026</p>
     </div>
   );
