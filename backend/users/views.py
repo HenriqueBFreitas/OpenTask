@@ -1,5 +1,5 @@
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -123,4 +123,17 @@ class GoogleLoginView(APIView):
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
+        })
+    
+from rest_framework.permissions import IsAuthenticated
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'username': user.username,
+            'email': user.email,
+            'avatar_url': user.avatar_url,
         })

@@ -5,6 +5,7 @@ from .views import (
     RegisterView,
     GoogleLoginView,
     CheckUsernameView,
+    MeView
 )
 
 app_name = 'users'
@@ -18,4 +19,5 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
 
     path('check-username/', CheckUsernameView.as_view(), name='check_username'),
+    path('me/', MeView.as_view(), name='me'),
 ]
