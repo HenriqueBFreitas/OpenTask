@@ -124,8 +124,6 @@ class GoogleLoginView(APIView):
             'access': str(refresh.access_token),
             'refresh': str(refresh),
         })
-    
-from rest_framework.permissions import IsAuthenticated
 
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
@@ -135,5 +133,5 @@ class MeView(APIView):
         return Response({
             'username': user.username,
             'email': user.email,
-            'avatar_url': user.avatar_url,
+            'avatar': getattr(user, 'avatar_url', None),
         })
