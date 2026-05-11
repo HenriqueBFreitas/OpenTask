@@ -93,6 +93,7 @@ The API will be available at `http://localhost:8000`.
 cd frontend
 
 npm install
+npm install excalidraw
 npm run dev
 ```
 
