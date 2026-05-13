@@ -1,36 +1,73 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
-import { Excalidraw } from '@excalidraw/excalidraw';
-import '@excalidraw/excalidraw/index.css';
+import dynamic from 'next/dynamic';
+import { useRef, useEffect } from 'react';
+
+const Excalidraw = dynamic(
+  () => import('@excalidraw/excalidraw').then((mod) => mod.Excalidraw),
+  { ssr: false }
+);
+
+const getToken = () => localStorage.getItem('access_token');
+const API = 'http://localhost:8000/api';
 
 export default function ExcalidrawWrapper() {
-  const containerRef = useRef(null);
-  const [size, setSize] = useState(null);
+  const excalidrawAPI = useRef(null);
 
+  // Carrega o board ao abrir
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 10 && rect.height > 10) {
-        setSize({ w: Math.floor(rect.width), h: Math.floor(rect.height) });
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    fetch(`${API}/boards/`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (excalidrawAPI.current && data.elements?.length) {
+          excalidrawAPI.current.updateScene({
+            elements: data.elements,
+            appState: data.app_state,
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
+  // Salva o board
+  const handleSave = async () => {
+    if (!excalidrawAPI.current) return;
+    const elements = excalidrawAPI.current.getSceneElements();
+    const appState = excalidrawAPI.current.getAppState();
+    const files = excalidrawAPI.current.getFiles();
+
+    await fetch(`${API}/boards/`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify({ elements, app_state: appState, files }),
+    });
+  };
+
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
-      {size && (
-        <div style={{ width: size.w, height: size.h }}>
-          <Excalidraw
-            initialData={{ appState: { viewBackgroundColor: '#f7f5f0' } }}
-            UIOptions={{ welcomeScreen: false }}
-            langCode="pt-BR"
-          />
-        </div>
-      )}
+    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{
+        padding: '6px 12px', background: '#fff',
+        borderBottom: '1px solid #e8e5e0',
+        display: 'flex', justifyContent: 'flex-end',
+      }}>
+        <button
+          onClick={handleSave}
+          style={{
+            background: '#2c2a26', color: '#fff', border: 'none',
+            borderRadius: 8, padding: '6px 16px', fontSize: 13,
+            fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+         Salvar
+        </button>
+      </div>
+      <div style={{ flex: 1 }}>
+        <Excalidraw excalidrawAPI={(api) => (excalidrawAPI.current = api)} />
+      </div>
     </div>
   );
 }
