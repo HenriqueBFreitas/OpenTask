@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-// ─── Modal de apelido (Google) ───────────────────────────────────────────────
 function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,12 +48,12 @@ function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
         display: 'flex', flexDirection: 'column', gap: 16,
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>👋</div>
+          <div style={{ fontSize: 36, marginBottom: 8 }}></div>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1814', margin: 0 }}>
             Escolha seu apelido
           </h2>
           <p style={{ fontSize: 13, color: '#a09d97', marginTop: 6 }}>
-            Como quer ser chamado na OpenTask?
+            Como quer ser chamado no OpenTask?
           </p>
         </div>
 
@@ -94,7 +93,6 @@ function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
   );
 }
 
-// ─── Página principal ────────────────────────────────────────────────────────
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
@@ -150,7 +148,6 @@ export default function LoginPage() {
       document.cookie = `access=${data.access}; path=/; max-age=3600; SameSite=Lax`;
       document.cookie = `refresh=${data.refresh}; path=/; max-age=604800; SameSite=Lax`;
 
-      // Verifica se precisa escolher apelido
       const meRes = await fetch('http://localhost:8000/api/users/me/', {
         headers: { Authorization: `Bearer ${data.access}` },
       });
@@ -174,25 +171,26 @@ export default function LoginPage() {
   };
 
   async function handleSubmit() {
-    if (!username.trim() || !password.trim()) return;
     setLoading(true);
     setError('');
     setSuccess('');
     try {
       if (isLogin) {
+        if (!email.trim() || !password.trim()) return;
         const res = await fetch('http://localhost:8000/api/users/login/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ email, password }),
         });
         const data = await res.json();
-        if (!res.ok) { setError(data.detail || data.username?.[0] || 'Algo deu errado.'); return; }
+        if (!res.ok) { setError(data.detail || data.email?.[0] || 'Algo deu errado.'); return; }
         localStorage.setItem('access_token', data.access);
         localStorage.setItem('refresh_token', data.refresh);
         document.cookie = `access=${data.access}; path=/`;
         router.push('/dashboard');
       } else {
         if (!email.trim()) { setError('Email é obrigatório.'); return; }
+        if (!username.trim()) { setError('Usuário é obrigatório.'); return; }
         if (password !== passwordConfirm) { setError('As senhas não coincidem.'); return; }
         const res = await fetch('http://localhost:8000/api/users/register/', {
           method: 'POST',
@@ -262,27 +260,29 @@ export default function LoginPage() {
             />
           )}
 
-          <input
-            type="text"
-            placeholder="Digite seu usuário"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            disabled={loading}
-            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
-          />
-
+          {/* Usuário — só no cadastro */}
           {!isLogin && (
             <input
-              type="email"
-              placeholder="Digite seu email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+              type="text"
+              placeholder="Digite seu usuário"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSubmit()}
               disabled={loading}
               className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
             />
           )}
+
+          {/* Email — sempre visível */}
+          <input
+            type="email"
+            placeholder="Digite seu email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            disabled={loading}
+            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
+          />
 
           <div className="relative">
             <input
@@ -318,7 +318,7 @@ export default function LoginPage() {
 
           <button
             onClick={handleSubmit}
-            disabled={!username.trim() || !password.trim() || loading}
+            disabled={!email.trim() || !password.trim() || loading}
             className="w-full py-3 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 text-white text-sm font-medium rounded-xl transition-all active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
