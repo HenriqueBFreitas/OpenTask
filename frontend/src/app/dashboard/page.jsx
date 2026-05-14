@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import TasksView from '@/components/TaskView';
+import DocsView from '../../components/DocsView';
 
 const ExcalidrawWrapper = dynamic(
   () => import('./ExcalidrawWrapper'),

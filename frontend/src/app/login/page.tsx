@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
-// ─── Modal de apelido (Google) ───────────────────────────────────────────────
 function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,12 +48,12 @@ function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
         display: 'flex', flexDirection: 'column', gap: 16,
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 8 }}>👋</div>
+          <div style={{ fontSize: 36, marginBottom: 8 }}></div>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1814', margin: 0 }}>
             Escolha seu apelido
           </h2>
           <p style={{ fontSize: 13, color: '#a09d97', marginTop: 6 }}>
-            Como quer ser chamado na OpenTask?
+            Como quer ser chamado no OpenTask?
           </p>
         </div>
 
@@ -94,7 +93,6 @@ function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
   );
 }
 
-// ─── Página principal ────────────────────────────────────────────────────────
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);

@@ -3,11 +3,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework import status
 from django.db import models
-from .models import Task, SubTask, TaskImage
-from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer
-
+from .models import Task, SubTask, TaskImage, Board
+from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
 
 class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
@@ -23,7 +23,6 @@ class TaskViewSet(ModelViewSet):
     def perform_update(self, serializer):
         task = self.get_object()
         new_completed = serializer.validated_data.get('completed', task.completed)
-
         if new_completed and not task.completed:
             task.subtasks.update(
                 completed_before_task=models.F('completed'),
@@ -33,7 +32,6 @@ class TaskViewSet(ModelViewSet):
             for subtask in task.subtasks.all():
                 subtask.completed = subtask.completed_before_task
                 subtask.save()
-
         serializer.save()
 
     @action(
@@ -44,17 +42,13 @@ class TaskViewSet(ModelViewSet):
     )
     def upload_images(self, request, pk=None):
         task = self.get_object()
-
         files = request.FILES.getlist('images')
-
         if not files:
             return Response({"error": "Nenhuma imagem enviada"}, status=400)
-
         created = []
         for file in files:
             img = TaskImage.objects.create(task=task, image=file)
             created.append(TaskImageSerializer(img, context={'request': request}).data)
-
         return Response(created, status=status.HTTP_201_CREATED)
 
 
@@ -69,3 +63,18 @@ class SubTaskViewSet(ModelViewSet):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
+
+class BoardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        board, _ = Board.objects.get_or_create(user=request.user)
+        return Response(BoardSerializer(board).data)
+
+    def patch(self, request):
+        board, _ = Board.objects.get_or_create(user=request.user)
+        serializer = BoardSerializer(board, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
