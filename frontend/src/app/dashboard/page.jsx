@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import TasksView from '@/components/TaskView';
 
@@ -16,11 +16,11 @@ const ExcalidrawWrapper = dynamic(
 );
 
 const NAV = [
-  { id: 'whiteboard', icon: ' ', label: 'Quadro' },
-  { id: 'tasks',      icon: ' ',  label: 'Tarefas' },
-  { id: 'docs',       icon: ' ', label: 'Docs' },
-  { id: 'members',    icon: ' ', label: 'Equipe' },
-  { id: 'settings',   icon: ' ', label: 'Config' },
+  { id: 'whiteboard', icon: '', label: 'Quadro' },
+  { id: 'tasks',      icon: '',  label: 'Tarefas' },
+  { id: 'docs',       icon: '', label: 'Docs' },
+  { id: 'members',    icon: '', label: 'Equipe' },
+  { id: 'settings',   icon: '', label: 'Config' },
 ];
 
 function PlaceholderView({ label, icon }) {
@@ -40,10 +40,23 @@ function PlaceholderView({ label, icon }) {
 export default function Dashboard() {
   const [active, setActive] = useState('whiteboard');
   const [collapsed, setCollapsed] = useState(false);
+  const [username, setUsername] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+    fetch('http://localhost:8000/api/users/me/', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => setUsername(data.username || data.email || ''))
+      .catch(() => {});
+  }, []);
+
+  const initial = username ? username[0].toUpperCase() : '?';
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f7f5f0' }}>
-
       <aside style={{
         width: collapsed ? 56 : 200,
         minWidth: collapsed ? 56 : 200,
@@ -102,10 +115,10 @@ export default function Dashboard() {
             background: '#2c2a26', color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12, fontWeight: 700, flexShrink: 0,
-          }}>D</div>
+          }}>{initial}</div>
           {!collapsed && (
             <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#2c2a26', whiteSpace: 'nowrap' }}>davi4</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#2c2a26', whiteSpace: 'nowrap' }}>{username || '...'}</div>
               <div style={{ fontSize: 11, color: '#a09d97', whiteSpace: 'nowrap' }}>Pessoal</div>
             </div>
           )}
