@@ -14,7 +14,6 @@ class SubTask(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='subtasks')
     title = models.CharField(max_length=255)
     completed = models.BooleanField(default=False)
-    completed_before_task = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -27,3 +26,11 @@ class TaskImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.task.title}"
+class Board(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    elements = models.JSONField(default=list)
+    app_state = models.JSONField(default=dict)
+    files = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return f"Board de {self.user}"
