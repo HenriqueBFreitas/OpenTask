@@ -47,3 +47,19 @@ class SubTaskViewSet(ModelViewSet):
 
     def get_queryset(self):
         return SubTask.objects.filter(task__user=self.request.user)
+from rest_framework.views import APIView
+from .models import Board
+from .serializers import BoardSerializer
+
+class BoardView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        board, _ = Board.objects.get_or_create(user=request.user)
+        return Response(BoardSerializer(board).data)
+    def put(self, request):
+        board, _ = Board.objects.get_or_create(user=request.user)
+        serializer = BoardSerializer(board, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
