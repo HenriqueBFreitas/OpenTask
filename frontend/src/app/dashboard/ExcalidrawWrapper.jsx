@@ -1,36 +1,61 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
-import { Excalidraw } from '@excalidraw/excalidraw';
-import '@excalidraw/excalidraw/index.css';
+import { useEffect, useRef } from 'react';
+
+const getToken = () => localStorage.getItem('access_token');
+const API = 'http://localhost:8000/api';
 
 export default function ExcalidrawWrapper() {
-  const containerRef = useRef(null);
-  const [size, setSize] = useState(null);
+  const iframeRef = useRef(null);
 
+  // Carrega o board e manda pro iframe depois que ele estiver pronto
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 10 && rect.height > 10) {
-        setSize({ w: Math.floor(rect.width), h: Math.floor(rect.height) });
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const sendBoard = () => {
+      fetch(`${API}/boards/`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      })
+        .then(r => r.json())
+        .then(data => {
+          iframe.contentWindow?.postMessage({
+            type: 'LOAD_BOARD',
+            elements: data.elements || [],
+            appState: data.app_state || {},
+          }, '*');
+        })
+        .catch(() => {});
+    };
+
+    iframe.addEventListener('load', sendBoard);
+    return () => iframe.removeEventListener('load', sendBoard);
+  }, []);
+
+  // Recebe o postMessage do iframe e salva no backend
+  useEffect(() => {
+    const handleMessage = async (e) => {
+      if (e.data?.type !== 'SAVE_BOARD') return;
+      const { elements, appState, files } = e.data;
+      await fetch(`${API}/boards/`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify({ elements, app_state: appState, files }),
+      });
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
-      {size && (
-        <div style={{ width: size.w, height: size.h }}>
-          <Excalidraw
-            initialData={{ appState: { viewBackgroundColor: '#f7f5f0' } }}
-            UIOptions={{ welcomeScreen: false }}
-            langCode="pt-BR"
-          />
-        </div>
-      )}
+    <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <iframe
+        ref={iframeRef}
+        src="/excalidraw.html"
+        style={{ flex: 1, border: 'none' }}
+      />
     </div>
   );
 }

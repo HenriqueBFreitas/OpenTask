@@ -4,10 +4,102 @@ import { useRouter } from 'next/navigation';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
+// ─── Modal de apelido (Google) ───────────────────────────────────────────────
+function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
+  const [username, setUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    if (!username.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('http://localhost:8000/api/users/me/username/', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.username?.[0] || data.error || 'Apelido inválido.');
+        return;
+      }
+      onSave(username);
+    } catch {
+      setError('Erro ao salvar apelido.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 9999, backdropFilter: 'blur(4px)',
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 20, padding: 36, width: 400,
+        boxShadow: '0 24px 80px rgba(0,0,0,0.2)',
+        display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 36, marginBottom: 8 }}>👋</div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1814', margin: 0 }}>
+            Escolha seu apelido
+          </h2>
+          <p style={{ fontSize: 13, color: '#a09d97', marginTop: 6 }}>
+            Como quer ser chamado na OpenTask?
+          </p>
+        </div>
+
+        <input
+          placeholder="Seu apelido"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          autoFocus
+          style={{
+            border: '1.5px solid #e2ddd6', borderRadius: 10,
+            padding: '11px 14px', fontSize: 14, fontFamily: 'inherit',
+            outline: 'none', color: '#1a1814', background: '#faf9f7',
+          }}
+          onFocus={e => e.target.style.borderColor = '#2c2a26'}
+          onBlur={e => e.target.style.borderColor = '#e2ddd6'}
+        />
+
+        {error && (
+          <p style={{ fontSize: 12, color: '#c0392b', margin: 0, textAlign: 'center' }}>{error}</p>
+        )}
+
+        <button
+          onClick={handleSave}
+          disabled={!username.trim() || loading}
+          style={{
+            background: username.trim() ? '#2c2a26' : '#c5c2bc',
+            color: '#fff', border: 'none', borderRadius: 11,
+            padding: '12px', fontSize: 14, fontWeight: 700,
+            cursor: username.trim() ? 'pointer' : 'not-allowed',
+          }}
+        >
+          {loading ? 'Salvando...' : 'Continuar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Página principal ────────────────────────────────────────────────────────
 export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
@@ -15,6 +107,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
   const btnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,16 +144,33 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Erro ao entrar com Google.'); return; }
+
       localStorage.setItem('access_token', data.access);
       localStorage.setItem('refresh_token', data.refresh);
       document.cookie = `access=${data.access}; path=/; max-age=3600; SameSite=Lax`;
       document.cookie = `refresh=${data.refresh}; path=/; max-age=604800; SameSite=Lax`;
-      router.push('/dashboard');
+
+      // Verifica se precisa escolher apelido
+      const meRes = await fetch('http://localhost:8000/api/users/me/', {
+        headers: { Authorization: `Bearer ${data.access}` },
+      });
+      const me = await meRes.json();
+
+      if (!me.username_set) {
+        setShowUsernameModal(true);
+      } else {
+        router.push('/dashboard');
+      }
     } catch {
       setError('Não foi possível conectar ao servidor.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUsernameSaved = () => {
+    setShowUsernameModal(false);
+    router.push('/dashboard');
   };
 
   async function handleSubmit() {
@@ -82,16 +192,24 @@ export default function LoginPage() {
         document.cookie = `access=${data.access}; path=/`;
         router.push('/dashboard');
       } else {
+        if (!email.trim()) { setError('Email é obrigatório.'); return; }
+        if (password !== passwordConfirm) { setError('As senhas não coincidem.'); return; }
         const res = await fetch('http://localhost:8000/api/users/register/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, email, password, password_confirm: passwordConfirm }),
+          body: JSON.stringify({
+            username,
+            full_name: fullName,
+            email,
+            password,
+            password_confirm: passwordConfirm,
+          }),
         });
         const data = await res.json();
-        if (!res.ok) { setError(data.detail || data.username?.[0] || 'Algo deu errado.'); return; }
+        if (!res.ok) { setError(data.detail || data.username?.[0] || data.email?.[0] || 'Algo deu errado.'); return; }
         setSuccess('Conta criada! Agora é só entrar.');
         setIsLogin(true);
-        setUsername(''); setEmail(''); setPassword(''); setPasswordConfirm('');
+        setUsername(''); setFullName(''); setEmail(''); setPassword(''); setPasswordConfirm('');
       }
     } catch {
       setError('Não foi possível conectar ao servidor.');
@@ -100,11 +218,24 @@ export default function LoginPage() {
     }
   }
 
+  const EyeIcon = ({ closed }: { closed: boolean }) => closed ? (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+  );
+
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4"
       style={{ backgroundColor: '#f0ede8', backgroundImage: 'radial-gradient(#c8c4be 1px, transparent 1px)', backgroundSize: '20px 20px' }}
     >
+      {showUsernameModal && <UsernameModal onSave={handleUsernameSaved} />}
+
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-semibold text-gray-700 mt-3" style={{ fontFamily: 'var(--font-lora)' }}>
           {isLogin ? 'Entrar ou cadastrar-se' : 'Criar sua conta'}
@@ -117,27 +248,82 @@ export default function LoginPage() {
         {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl"><p className="text-green-600 text-sm text-center">{success}</p></div>}
 
         <div className="space-y-3">
-          <input type="text" placeholder="Digite seu usuário" value={username} onChange={(e) => setUsername(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm" />
-          <input type="email" placeholder="Digite seu email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm" />
+
+          {/* Nome completo — só no cadastro */}
+          {!isLogin && (
+            <input
+              type="text"
+              placeholder="Seu nome completo"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              disabled={loading}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
+            />
+          )}
+
+          <input
+            type="text"
+            placeholder="Digite seu usuário"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            disabled={loading}
+            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
+          />
+
+          {!isLogin && (
+            <input
+              type="email"
+              placeholder="Digite seu email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              disabled={loading}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm"
+            />
+          )}
 
           <div className="relative">
-            <input type={showPassword ? 'text' : 'password'} placeholder="Senha" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10" />
+            <input
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Senha"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              disabled={loading}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10"
+            />
             <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
-              {showPassword ? (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>)}
+              <EyeIcon closed={showPassword} />
             </button>
           </div>
 
           {!isLogin && (
             <div className="relative">
-              <input type={showPassword ? 'text' : 'password'} placeholder="Confirme sua senha" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} disabled={loading} className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Confirme sua senha"
+                value={passwordConfirm}
+                onChange={e => setPasswordConfirm(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                disabled={loading}
+                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all shadow-sm pr-10"
+              />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
-                {showPassword ? (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>) : (<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>)}
+                <EyeIcon closed={showPassword} />
               </button>
             </div>
           )}
 
-          <button onClick={handleSubmit} disabled={!username.trim() || !password.trim() || loading} className="w-full py-3 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 text-white text-sm font-medium rounded-xl transition-all active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2">
-            {loading ? (<><svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>{isLogin ? 'Entrando...' : 'Criando...'}</>) : (isLogin ? 'Entrar' : 'Criar conta')}
+          <button
+            onClick={handleSubmit}
+            disabled={!username.trim() || !password.trim() || loading}
+            className="w-full py-3 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 text-white text-sm font-medium rounded-xl transition-all active:scale-[0.98] cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <><svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>{isLogin ? 'Entrando...' : 'Criando...'}</>
+            ) : (isLogin ? 'Entrar' : 'Criar conta')}
           </button>
 
           <div className="flex items-center gap-3 my-1">
@@ -151,7 +337,14 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-gray-500 mt-5">
           {isLogin ? 'Não tem conta?' : 'Já tem conta?'}{' '}
-          <button onClick={() => { setIsLogin(!isLogin); setError(''); setSuccess(''); setUsername(''); setEmail(''); setPassword(''); setPasswordConfirm(''); }} className="text-gray-700 font-semibold hover:underline cursor-pointer">
+          <button
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError(''); setSuccess('');
+              setUsername(''); setFullName(''); setEmail(''); setPassword(''); setPasswordConfirm('');
+            }}
+            className="text-gray-700 font-semibold hover:underline cursor-pointer"
+          >
             {isLogin ? 'Cadastre-se' : 'Entrar'}
           </button>
         </p>
