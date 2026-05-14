@@ -1,13 +1,11 @@
 from rest_framework import serializers
 from .models import Task, SubTask, TaskImage, Board
 
-
 class TaskImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskImage
         fields = ['id', 'image', 'uploaded_at']
-        read_only_fields = ['uploaded_at', 'id', 'user']
-
+        read_only_fields = ['uploaded_at', 'id']
 
 class TaskImageUploadSerializer(serializers.Serializer):
     images = serializers.ListField(
@@ -15,21 +13,19 @@ class TaskImageUploadSerializer(serializers.Serializer):
         write_only=True
     )
 
-
 class SubTaskSerializer(serializers.ModelSerializer):
     task = serializers.PrimaryKeyRelatedField(queryset=Task.objects.all())
 
     class Meta:
         model = SubTask
         fields = ['id', 'task', 'title', 'completed', 'created_at']
-        read_only_fields = ['created_at', 'id', 'user']
+        read_only_fields = ['created_at', 'id']
 
     def validate_task(self, value):
         request = self.context.get('request')
         if request and value.user != request.user:
             raise serializers.ValidationError("Você não pode usar essa task.")
         return value
-
 
 class TaskSerializer(serializers.ModelSerializer):
     images_data = TaskImageSerializer(source='images', many=True, read_only=True)
