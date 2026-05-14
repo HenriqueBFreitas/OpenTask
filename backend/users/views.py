@@ -8,7 +8,7 @@ from django.conf import settings
 from django.db import IntegrityError
 from .utils import generate_unique_username
 from .models import CustomUser
-from .serializers import RegisterSerializer, EmailTokenObtainPairSerializer
+from .serializers import RegisterSerializer, EmailTokenObtainPairSerializer, UsernameUpdateSerializer
 import requests
 
 class LoginView(TokenObtainPairView):
@@ -82,6 +82,7 @@ class GoogleLoginView(APIView):
         email = data.get('email')
         google_id = data.get('sub')
         picture = data.get('picture', '')
+        google_name = data.get('name', '')
 
         if not email or not google_id:
             return Response(
@@ -95,8 +96,10 @@ class GoogleLoginView(APIView):
             if user:
                 if not user.google_id:
                     user.google_id = google_id
-
                 user.avatar_url = picture
+
+                if not user.full_name and google_name:
+                    user.full_name = google_name
                 user.save()
             else:
                 base = email.split('@')[0]
@@ -107,9 +110,10 @@ class GoogleLoginView(APIView):
                     email=email,
                     password=None
                 )
-
                 user.google_id = google_id
                 user.avatar_url = picture
+                user.full_name = google_name
+                user.username_set = False
                 user.save()
 
         except IntegrityError:
@@ -132,6 +136,27 @@ class MeView(APIView):
         user = request.user
         return Response({
             'username': user.username,
+            'full_name': user.full_name,
             'email': user.email,
             'avatar': getattr(user, 'avatar_url', None),
+            'username_set': user.username_set,
         })
+
+
+class UsernameUpdateView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        serializer = UsernameUpdateSerializer(
+            instance=request.user,
+            data=request.data,
+            partial=True
+        )
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                'username': user.username,
+                'username_set': user.username_set,
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

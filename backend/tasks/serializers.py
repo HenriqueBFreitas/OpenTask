@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, SubTask, TaskImage
+from .models import Task, SubTask, TaskImage, Board
 
 
 class TaskImageSerializer(serializers.ModelSerializer):
@@ -46,3 +46,9 @@ class TaskSerializer(serializers.ModelSerializer):
             'subtasks',
         ]
         read_only_fields = ['id', 'user', 'created_at']
+
+class BoardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Board
+        fields = ['id', 'elements', 'app_state', 'files', 'updated_at']
+        read_only_fields = ['id', 'updated_at']

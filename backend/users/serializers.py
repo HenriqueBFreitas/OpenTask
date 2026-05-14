@@ -5,16 +5,23 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True)
+    full_name = serializers.CharField(required=True, max_length=255)
+    username = serializers.CharField(required=True, min_length=3, max_length=150)
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
 
     class Meta:
         model = CustomUser
-        fields = ['username', 'email', 'password', 'password_confirm']
+        fields = ['email', 'full_name', 'username', 'password', 'password_confirm']
 
     def validate_username(self, value):
+        import re
+        if not re.match(r'^[\w.@+-]+$', value):
+            raise serializers.ValidationError(
+                "Username pode conter apenas letras, números e os caracteres @/./+/-/_"
+            )
         if CustomUser.objects.filter(username=value).exists():
-            raise serializers.ValidationError("This username is already taken.")
+            raise serializers.ValidationError("Este username já está em uso.")
         return value
 
     def validate_email(self, value):
@@ -29,12 +36,43 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password_confirm')
+        full_name = validated_data.pop('full_name')
+
         user = CustomUser.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
         )
+        user.full_name = full_name
+        user.username_set = True
+        user.save()
         return user
+
+class UsernameUpdateSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=True, min_length=3, max_length=150)
+
+    class Meta:
+        model = CustomUser
+        fields = ['username']
+
+    def validate_username(self, value):
+        import re
+        if not re.match(r'^[\w.@+-]+$', value):
+            raise serializers.ValidationError(
+                "Username pode conter apenas letras, números e os caracteres @/./+/-/_"
+            )
+        qs = CustomUser.objects.filter(username=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Este username já está em uso.")
+        return value
+
+    def update(self, instance, validated_data):
+        instance.username = validated_data['username']
+        instance.username_set = True
+        instance.save()
+        return instance
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     username_field = 'email'
