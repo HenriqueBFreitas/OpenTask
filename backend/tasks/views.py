@@ -4,6 +4,7 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from django.db import models
 from .models import Task, SubTask, TaskImage
 from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer
 
@@ -18,6 +19,22 @@ class TaskViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def perform_update(self, serializer):
+        task = self.get_object()
+        new_completed = serializer.validated_data.get('completed', task.completed)
+
+        if new_completed and not task.completed:
+            task.subtasks.update(
+                completed_before_task=models.F('completed'),
+                completed=True
+            )
+        elif not new_completed and task.completed:
+            for subtask in task.subtasks.all():
+                subtask.completed = subtask.completed_before_task
+                subtask.save()
+
+        serializer.save()
 
     @action(
         detail=True,
@@ -47,19 +64,8 @@ class SubTaskViewSet(ModelViewSet):
 
     def get_queryset(self):
         return SubTask.objects.filter(task__user=self.request.user)
-from rest_framework.views import APIView
-from .models import Board
-from .serializers import BoardSerializer
 
-class BoardView(APIView):
-    permission_classes = [IsAuthenticated]
-    def get(self, request):
-        board, _ = Board.objects.get_or_create(user=request.user)
-        return Response(BoardSerializer(board).data)
-    def put(self, request):
-        board, _ = Board.objects.get_or_create(user=request.user)
-        serializer = BoardSerializer(board, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=400)
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
