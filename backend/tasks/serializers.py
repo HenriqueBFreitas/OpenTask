@@ -21,8 +21,8 @@ class SubTaskSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SubTask
-        fields = ['id', 'task', 'title', 'completed', 'created_at']
-        read_only_fields = ['created_at', 'id', 'user']
+        fields = ['id', 'task', 'title', 'completed', 'completed_before_task', 'created_at']
+        read_only_fields = ['created_at', 'id', 'user', 'completed_before_task']
 
     def validate_task(self, value):
         request = self.context.get('request')
@@ -40,12 +40,14 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'title',
+            'description',
             'completed',
             'created_at',
             'images_data',
             'subtasks',
         ]
         read_only_fields = ['id', 'user', 'created_at']
+
 
 class BoardSerializer(serializers.ModelSerializer):
     class Meta:
