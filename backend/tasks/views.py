@@ -4,8 +4,9 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Task, SubTask, TaskImage
-from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer
+from .models import Task, SubTask, TaskImage, Board
+from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
+from rest_framework.views import APIView
 
 
 class TaskViewSet(ModelViewSet):
@@ -47,9 +48,6 @@ class SubTaskViewSet(ModelViewSet):
 
     def get_queryset(self):
         return SubTask.objects.filter(task__user=self.request.user)
-from rest_framework.views import APIView
-from .models import Board
-from .serializers import BoardSerializer
 
 class BoardView(APIView):
     permission_classes = [IsAuthenticated]
