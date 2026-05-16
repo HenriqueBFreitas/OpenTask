@@ -54,7 +54,6 @@ class FileDetailView(APIView):
         file = self.get_object(pk, request.user)
         if not file:
             return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-        # Remove o arquivo físico do storage
         file.file.delete(save=False)
         file.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -82,7 +81,6 @@ class TaskFileListCreateView(APIView):
         data = request.data.copy()
         data['task'] = task_id
 
-        # Garante que o arquivo pertence ao usuário
         file_id = data.get('file')
         if not File.objects.filter(pk=file_id, user=request.user).exists():
             return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
