@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('tasks', '0001_initial'),
+        ('tasks', '0004_task_description_subtask_completed_before_task'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

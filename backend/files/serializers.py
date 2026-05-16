@@ -15,7 +15,6 @@ MAX_USER_STORAGE = 500 * 1024 * 1024    # 500 MB
 
 class FileSerializer(serializers.ModelSerializer):
 
-    # URL absoluta para o frontend consumir direto
     file_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -73,7 +72,6 @@ class FileSerializer(serializers.ModelSerializer):
 
 class TaskFileSerializer(serializers.ModelSerializer):
 
-    # Inclui os detalhes do arquivo junto (útil para o frontend)
     file_detail = FileSerializer(source='file', read_only=True)
 
     class Meta:
@@ -92,7 +90,6 @@ class TaskFileSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, data):
-        # Evita duplicata (task + file já vinculados)
         if TaskFile.objects.filter(task=data['task'], file=data['file']).exists():
             raise serializers.ValidationError(
                 'Este arquivo já está vinculado a esta task.'

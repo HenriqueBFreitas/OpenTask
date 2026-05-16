@@ -7,9 +7,9 @@ import cloudinary
 load_dotenv()
 
 cloudinary.config(
-    cloud_name = os.getenv("CLOUDI_NAME"),
-    api_key = os.getenv("CLOUDI_API_KEY"),
-    api_secret = os.getenv("CLOUDI_API_SECRET"),
+    cloud_name=os.getenv("CLOUDI_NAME"),
+    api_key=os.getenv("CLOUDI_API_KEY"),
+    api_secret=os.getenv("CLOUDI_API_SECRET"),
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,7 +21,6 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
 INSTALLED_APPS = [
@@ -53,7 +52,6 @@ INSTALLED_APPS = [
     'friends',
     'tasks',
     'files',
-    'groups',
 ]
 
 MIDDLEWARE = [
@@ -87,26 +85,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# sqlite3
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-
-# postgresql
+# SQLite (desenvolvimento local)
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': os.getenv('DB_NAME'),
-#         'USER': os.getenv('DB_USER'),
-#         'PASSWORD': os.getenv('DB_PASSWORD'),
-#         'HOST': os.getenv('DB_HOST', default='localhost'),
-#         'PORT': os.getenv('DB_PORT', default='5432'),
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
+# PostgreSQL (produção) — descomente e comente o SQLite acima
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
+    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -169,3 +166,7 @@ SOCIALACCOUNT_PROVIDERS = {
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Tamanho máximo de upload: 100 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600
+FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600
