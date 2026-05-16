@@ -11,6 +11,7 @@ urlpatterns = [
     path('api/', include('tasks.urls')),
     path('api/groups/', include('groups.urls')),
     path('api/friends/', include('friends.urls')),
+    path('api/', include('files.urls')),
 ]
 
 if settings.DEBUG:

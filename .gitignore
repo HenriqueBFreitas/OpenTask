@@ -58,6 +58,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env
+frontend/.env.local
 
 # vercel
 .vercel
@@ -69,3 +70,6 @@ next-env.d.ts
 #frontend
 frontend/node_modules/
 frontend/.next/
+
+#media
+backend/media/
