@@ -21,8 +21,8 @@ urlpatterns = [
     path('files/stats/', FileStorageStatsView.as_view(), name='file-stats'),
 
     # ── Arquivos vinculados a Tasks ────────────────────────────────────────
-    # GET    /api/tasks/<task_id>/files/       → arquivos de uma task
-    # POST   /api/tasks/<task_id>/files/       → vincula arquivo a uma task
+    # GET    /api/tasks/<task_id>/files/      → arquivos de uma task
+    # POST   /api/tasks/<task_id>/files/      → vincula arquivo a uma task
     path('tasks/<int:task_id>/files/', TaskFileListCreateView.as_view(), name='taskfile-list-create'),
 
     # DELETE /api/tasks/<task_id>/files/<id>/  → desvincula arquivo da task
