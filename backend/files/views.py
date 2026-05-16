@@ -64,7 +64,7 @@ class TaskFileListCreateView(APIView):
     """
     GET  /api/tasks/<task_id>/files/   → lista arquivos vinculados a uma task
     POST /api/tasks/<task_id>/files/   → vincula um arquivo já existente a uma task
-                                         body: { "file": <file_id> }
+    body: { "file": <file_id> }
     """
     permission_classes = [IsAuthenticated]
 
