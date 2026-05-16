@@ -2,8 +2,15 @@ from pathlib import Path
 from datetime import timedelta
 import os
 from dotenv import load_dotenv
+import cloudinary
 
 load_dotenv()
+
+cloudinary.config(
+    cloud_name = os.getenv("CLOUDI_NAME"),
+    api_key = os.getenv("CLOUDI_API_KEY"),
+    api_secret = os.getenv("CLOUDI_API_SECRET"),
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -32,6 +39,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
+
+    'cloudinary',
+    'cloudinary_storage',
 
     'allauth',
     'allauth.account',

@@ -5,7 +5,7 @@ from .models import Task, SubTask, TaskImage, Board
 class TaskImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskImage
-        fields = ['id', 'image', 'uploaded_at']
+        fields = ['id', 'image_url', 'uploaded_at']
         read_only_fields = ['uploaded_at', 'id', 'user']
 
 
