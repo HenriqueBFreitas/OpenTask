@@ -50,6 +50,8 @@ INSTALLED_APPS = [
 
     'core',
     'tasks',
+    'files',
+    'groups',
 ]
 
 MIDDLEWARE = [

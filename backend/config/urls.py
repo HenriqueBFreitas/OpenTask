@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/core/', include('core.urls')),
     path('api/users/', include('users.urls')),
     path('api/', include('tasks.urls')),
+    path('api/', include('files.urls')),
 ]
 
 if settings.DEBUG:
