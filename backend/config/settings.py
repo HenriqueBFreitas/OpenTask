@@ -49,6 +49,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
 
     'core',
+    'groups',
+    'friends',
     'tasks',
     'files',
     'groups',
