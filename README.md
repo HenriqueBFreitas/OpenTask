@@ -80,7 +80,6 @@ cp .env.example .env
 # Fill in the required values in .env
 
 # Run migrations and start the server
-python manage.py migrate users
 python manage.py migrate
 python manage.py runserver
 ```

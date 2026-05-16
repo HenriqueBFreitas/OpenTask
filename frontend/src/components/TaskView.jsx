@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
@@ -15,9 +15,127 @@ const loadPositions = () => {
 };
 const savePositions = (pos) => localStorage.setItem(POSITIONS_KEY, JSON.stringify(pos));
 
-// ─── Modal de criação ───────────────────────────────────────────────────────
-function CreateTaskModal({ onClose, onCreate }) {
-  const [form, setForm] = useState({ title: '', description: '', image: null });
+// ─── Workspace Dropdown ──────────────────────────────────────────────────────
+function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const activeLabel = activeWorkspace === null
+    ? 'Pessoal'
+    : teams.find(t => t.id === activeWorkspace)?.name || 'Pessoal';
+
+  const items = [
+    { id: null, label: 'Pessoal', color: '#a09d97' },
+    ...teams.map(t => ({ id: t.id, label: t.name, color: t.color || '#2c2a26' })),
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: '#fff',
+          border: '1.5px solid #e2ddd6',
+          borderRadius: 10,
+          padding: '9px 14px',
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#2c2a26',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          transition: 'border-color 0.15s',
+          minWidth: 140,
+        }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = '#2c2a26'}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = '#e2ddd6'; }}
+      >
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+          background: activeWorkspace === null
+            ? '#a09d97'
+            : (teams.find(t => t.id === activeWorkspace)?.color || '#2c2a26'),
+        }} />
+        <span style={{ flex: 1, textAlign: 'left' }}>{activeLabel}</span>
+        <span style={{ fontSize: 10, color: '#a09d97' }}>{open ? '▲' : '▼'}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 6px)',
+          left: 0,
+          background: '#fff',
+          border: '1.5px solid #e2ddd6',
+          borderRadius: 12,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
+          minWidth: 190,
+          zIndex: 200,
+          padding: 4,
+          overflow: 'hidden',
+        }}>
+          {items.map((item, i) => {
+            const isActive = item.id === activeWorkspace;
+            return (
+              <button
+                key={i}
+                onClick={() => { onChange(item.id); setOpen(false); }}
+                style={{
+                  width: '100%',
+                  background: isActive ? '#f5f3ef' : 'none',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  fontWeight: isActive ? 700 : 400,
+                  color: isActive ? '#1a1814' : '#4a4845',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#faf9f7'; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'none'; }}
+              >
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                  background: item.color,
+                }} />
+                {item.label}
+                {isActive && (
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: '#2c2a26' }}>✓</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Modal de criação ────────────────────────────────────────────────────────
+function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) {
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    image: null,
+    team: defaultTeam !== null ? String(defaultTeam) : '',
+  });
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
 
@@ -35,6 +153,11 @@ function CreateTaskModal({ onClose, onCreate }) {
     setLoading(false);
     onClose();
   };
+
+  const allOptions = [
+    { value: '', label: 'Pessoal', color: '#a09d97' },
+    ...teams.map(t => ({ value: String(t.id), label: t.name, color: t.color || '#2c2a26' })),
+  ];
 
   return (
     <div
@@ -75,13 +198,12 @@ function CreateTaskModal({ onClose, onCreate }) {
             border: '2px dashed #e2ddd6', borderRadius: 12, overflow: 'hidden',
             background: '#faf9f7', textAlign: 'center', minHeight: 90,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            position: 'relative',
           }}>
             {preview ? (
               <img src={preview} alt="preview" style={{ width: '100%', maxHeight: 160, objectFit: 'cover' }} />
             ) : (
               <div style={{ padding: '20px 0', color: '#a09d97', fontSize: 13 }}>
-                <div style={{ fontSize: 24, marginBottom: 4 }}></div>
+                <div style={{ fontSize: 20, marginBottom: 4, opacity: 0.5 }}>+</div>
                 Clique para anexar imagem
               </div>
             )}
@@ -100,7 +222,6 @@ function CreateTaskModal({ onClose, onCreate }) {
             border: '1.5px solid #e2ddd6', borderRadius: 10,
             padding: '10px 13px', fontSize: 14, fontFamily: 'inherit',
             outline: 'none', color: '#1a1814', background: '#faf9f7',
-            transition: 'border-color 0.15s',
           }}
           onFocus={e => e.target.style.borderColor = '#2c2a26'}
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
@@ -122,6 +243,56 @@ function CreateTaskModal({ onClose, onCreate }) {
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
         />
 
+        {/* Workspace — lista vertical igual à imagem de referência */}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#6b6760', marginBottom: 6 }}>
+            Workspace
+          </div>
+          <div style={{
+            border: '1.5px solid #e2ddd6', borderRadius: 10,
+            overflow: 'hidden', background: '#faf9f7',
+          }}>
+            {allOptions.map((opt, i) => {
+              const isSelected = form.team === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, team: opt.value }))}
+                  style={{
+                    width: '100%',
+                    background: isSelected ? '#f0ede8' : 'transparent',
+                    border: 'none',
+                    borderTop: i > 0 ? '1px solid #f0ede8' : 'none',
+                    padding: '11px 14px',
+                    fontSize: 14,
+                    fontWeight: isSelected ? 600 : 400,
+                    color: isSelected ? '#1a1814' : '#4a4845',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f5f3ef'; }}
+                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: opt.color,
+                  }} />
+                  {opt.label}
+                  {isSelected && (
+                    <span style={{ marginLeft: 'auto', fontSize: 13, color: '#2c2a26' }}>✓</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Botão criar */}
         <button
           onClick={handleSubmit}
@@ -142,8 +313,8 @@ function CreateTaskModal({ onClose, onCreate }) {
   );
 }
 
-// ─── Card de tarefa ─────────────────────────────────────────────────────────
-function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onPositionChange }) {
+// ─── Card de tarefa ──────────────────────────────────────────────────────────
+function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggleSubtask, onPositionChange }) {
   const [expanded, setExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task.title);
@@ -156,14 +327,13 @@ function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onP
   const pos = useRef({ x: task._x, y: task._y });
 
   const onMouseDown = (e) => {
-    if (e.target.closest('button, input, textarea, .no-drag')) return;
+    if (e.target.closest('button, input, textarea, select, .no-drag')) return;
     e.preventDefault();
     setDragging(true);
     dragOffset.current = {
       x: e.clientX - pos.current.x,
       y: e.clientY - pos.current.y,
     };
-
     const onMove = (ev) => {
       pos.current = {
         x: ev.clientX - dragOffset.current.x,
@@ -199,6 +369,7 @@ function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onP
     setAddingSub(false);
   };
 
+  const assignedTeam = teams.find(t => t.id === task.team || t.id === Number(task.team));
   const done = task.subtasks?.filter(s => s.completed).length || 0;
   const total = task.subtasks?.length || 0;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -233,6 +404,20 @@ function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onP
       )}
 
       <div style={{ padding: '14px 14px 12px' }}>
+        {assignedTeam && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: '#f5f3ef', borderRadius: 6, padding: '2px 8px',
+            fontSize: 10, fontWeight: 600, color: '#6b6760', marginBottom: 8,
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: assignedTeam.color || '#2c2a26',
+            }} />
+            {assignedTeam.name}
+          </div>
+        )}
+
         {editingTitle ? (
           <input
             className="no-drag"
@@ -260,7 +445,7 @@ function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onP
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 8 }}>
           <button
             className="no-drag"
             onClick={() => onUpdate(task.id, { completed: !task.completed })}
@@ -305,7 +490,7 @@ function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onP
             fontWeight: 500,
           }}
         >
-          {expanded ? '▲ Fechar' : '▼ Ver subtarefas'}
+          {expanded ? 'Fechar' : 'Ver subtarefas'}
         </button>
 
         {expanded && (
@@ -333,7 +518,6 @@ function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onP
                 </span>
               </div>
             ))}
-
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
               <input
                 placeholder="Nova subtarefa..."
@@ -372,33 +556,41 @@ function TaskCard({ task, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onP
             fontSize: 11, color: '#c9a09a', fontFamily: 'inherit',
           }}
         >
-          🗑 Excluir
+          Excluir
         </button>
       </div>
     </div>
   );
 }
 
-// ─── TasksView principal ────────────────────────────────────────────────────
+// ─── TasksView principal ─────────────────────────────────────────────────────
 export default function TasksView() {
   const [tasks, setTasks] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`${API}/tasks/`, { headers: authHeaders() });
-        if (!res.ok) throw new Error();
-        const data = await res.json();
+        const [tasksRes, teamsRes] = await Promise.all([
+          fetch(`${API}/tasks/`, { headers: authHeaders() }),
+          fetch(`${API}/teams/`, { headers: authHeaders() }),
+        ]);
+        if (!tasksRes.ok) throw new Error();
+        const data = await tasksRes.json();
+        const teamsData = teamsRes.ok ? await teamsRes.json() : [];
         const positions = loadPositions();
         setTasks(data.map((t, i) => ({
           ...t,
+          subtasks: t.subtasks || [],
           _x: positions[t.id]?.x ?? 30 + (i % 4) * 290,
           _y: positions[t.id]?.y ?? 30 + Math.floor(i / 4) * 220,
         })));
+        setTeams(Array.isArray(teamsData) ? teamsData : []);
       } catch {
         setError('Erro ao carregar tarefas.');
       } finally {
@@ -407,13 +599,26 @@ export default function TasksView() {
     })();
   }, []);
 
+  // Filtra tarefas pelo workspace ativo
+  const visibleTasks = tasks.filter(t => {
+    if (activeWorkspace === null) return !t.team || t.team === '' || t.team === null;
+    return t.team === activeWorkspace || t.team === String(activeWorkspace) || Number(t.team) === activeWorkspace;
+  });
+
   const createTask = async (form) => {
     setCreating(true);
     try {
+      const teamId = form.team ? Number(form.team) : null;
+      const body = {
+        title: form.title,
+        description: form.description || '',
+        completed: false,
+        ...(teamId ? { team: teamId } : {}),
+      };
       const res = await fetch(`${API}/tasks/`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ title: form.title, completed: false }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error();
       const t = await res.json();
@@ -517,6 +722,7 @@ export default function TasksView() {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#faf9f7' }}>
 
+      {/* Toolbar */}
       <div style={{
         position: 'absolute', top: 16, right: 20, zIndex: 50,
         display: 'flex', alignItems: 'center', gap: 10,
@@ -529,6 +735,13 @@ export default function TasksView() {
             {error}
           </span>
         )}
+
+        <WorkspaceDropdown
+          teams={teams}
+          activeWorkspace={activeWorkspace}
+          onChange={setActiveWorkspace}
+        />
+
         <button
           onClick={() => setShowModal(true)}
           style={{
@@ -542,18 +755,19 @@ export default function TasksView() {
         </button>
       </div>
 
-      {tasks.length === 0 ? (
+      {/* Canvas */}
+      {visibleTasks.length === 0 ? (
         <div style={{
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           height: '100%', gap: 12, userSelect: 'none',
         }}>
-          <div style={{ fontSize: 52, filter: 'grayscale(0.3)' }}>✓</div>
+          <div style={{ fontSize: 52, opacity: 0.15, fontWeight: 900, color: '#2c2a26' }}></div>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#2c2a26' }}>
-            Nenhuma tarefa ainda
+            Nenhuma tarefa neste workspace
           </span>
           <span style={{ fontSize: 13, color: '#a09d97' }}>
-            Comece criando sua primeira tarefa
+            Crie a primeira tarefa para este espaço
           </span>
           <button
             onClick={() => setShowModal(true)}
@@ -565,14 +779,15 @@ export default function TasksView() {
               letterSpacing: '0.2px',
             }}
           >
-            + Criar primeira tarefa
+            + Criar tarefa
           </button>
         </div>
       ) : (
-        tasks.map(task => (
+        visibleTasks.map(task => (
           <TaskCard
             key={task.id}
             task={task}
+            teams={teams}
             onUpdate={updateTask}
             onDelete={deleteTask}
             onAddSubtask={addSubtask}
@@ -586,6 +801,8 @@ export default function TasksView() {
         <CreateTaskModal
           onClose={() => setShowModal(false)}
           onCreate={createTask}
+          teams={teams}
+          defaultTeam={activeWorkspace}
         />
       )}
     </div>
