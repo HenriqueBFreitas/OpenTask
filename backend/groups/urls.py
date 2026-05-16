@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     GroupListCreateView, GroupDetailView,
-    SetAdminView, TransferOwnershipView, LeaveGroupView,
+    SetAdminView, TransferOwnershipView, LeaveGroupView, KickMemberView,
     InviteCreateView, InviteRespondView,
     GroupTaskListCreateView, GroupTaskDetailView,
     GroupSubTaskDetailView, ShareTaskToGroupView,
@@ -11,6 +11,7 @@ urlpatterns = [
     path('', GroupListCreateView.as_view()),
     path('<int:pk>/', GroupDetailView.as_view()),
     path('<int:group_id>/leave/', LeaveGroupView.as_view()),
+    path('<int:group_id>/members/<int:user_id>/kick/', KickMemberView.as_view()),
     path('<int:group_id>/members/<int:user_id>/role/', SetAdminView.as_view()),
     path('<int:group_id>/members/<int:user_id>/transfer-ownership/', TransferOwnershipView.as_view()),
     path('<int:group_id>/invites/', InviteCreateView.as_view()),

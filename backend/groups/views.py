@@ -303,3 +303,29 @@ class ShareTaskToGroupView(APIView):
             task.delete()
 
         return Response(GroupTaskSerializer(group_task).data, status=201)
+
+
+class KickMemberView(APIView):
+    """Owner expulsa membros e admins. Admin expulsa só membros."""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, group_id, user_id):
+        group = get_object_or_404(Group, pk=group_id)
+        requester = get_member(request.user, group)
+
+        if not requester or requester.role not in ('admin', 'owner'):
+            return Response({'error': 'Sem permissão para expulsar membros.'}, status=403)
+
+        target = get_object_or_404(GroupMember, group=group, user_id=user_id)
+
+        if target.user == request.user:
+            return Response({'error': 'Use a rota de sair do grupo.'}, status=400)
+
+        if target.role == 'owner':
+            return Response({'error': 'Não é possível expulsar o owner.'}, status=400)
+
+        if requester.role == 'admin' and target.role == 'admin':
+            return Response({'error': 'Admins só podem expulsar membros.'}, status=403)
+
+        target.delete()
+        return Response({'status': 'membro expulso'})
