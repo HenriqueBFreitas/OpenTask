@@ -93,7 +93,7 @@ WSGI_APPLICATION = 'config.wsgi.application'
 #     }
 # }
 
-# PostgreSQL (produção) — descomente e comente o SQLite acima
+# PostgreSQL (produção)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -120,6 +120,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Permite que iframes (preview de PDF) funcionem na mesma origem
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+CORS_EXPOSE_HEADERS = ['Content-Disposition']
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
