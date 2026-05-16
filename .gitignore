@@ -70,3 +70,6 @@ next-env.d.ts
 #frontend
 frontend/node_modules/
 frontend/.next/
+
+#media
+backend/media/

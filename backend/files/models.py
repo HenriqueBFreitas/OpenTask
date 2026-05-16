@@ -5,7 +5,6 @@ from tasks.models import Task
 import uuid
 
 
-
 ALLOWED_EXTENSIONS = [
     'jpg', 'jpeg', 'png', 'gif', 'webp',
     'pdf', 'doc', 'docx', 'xls', 'xlsx',
@@ -16,9 +15,7 @@ ALLOWED_EXTENSIONS = [
 
 def user_file_path(instance, filename):
     ext = filename.split('.')[-1]
-
     filename = f'{uuid.uuid4()}.{ext}'
-
     return f'users/{instance.user.id}/{filename}'
 
 
@@ -45,14 +42,9 @@ class File(models.Model):
     )
 
     def save(self, *args, **kwargs):
-
         if not self.original_name:
-            self.original_name = os.path.basename(
-                self.file.name
-            )
-    
+            self.original_name = os.path.basename(self.file.name)
         self.size = self.file.size
-    
         super().save(*args, **kwargs)
 
     def __str__(self):
