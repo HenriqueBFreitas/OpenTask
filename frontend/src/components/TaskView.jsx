@@ -15,6 +15,72 @@ const loadPositions = () => {
 };
 const savePositions = (pos) => localStorage.setItem(POSITIONS_KEY, JSON.stringify(pos));
 
+// ─── Modal de confirmação de exclusão ────────────────────────────────────────
+function DeleteModal({ taskTitle, onConfirm, onCancel }) {
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 9999, backdropFilter: 'blur(4px)',
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          background: '#fff', borderRadius: 16, padding: 28, width: 360,
+          boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
+          display: 'flex', flexDirection: 'column', gap: 16,
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1814', marginBottom: 6 }}>
+            Excluir tarefa
+          </div>
+          <div style={{ fontSize: 13, color: '#6b6760', lineHeight: 1.5 }}>
+            Tem certeza que deseja excluir{' '}
+            <span style={{ fontWeight: 600, color: '#2c2a26' }}>"{taskTitle}"</span>?
+            Esta ação não pode ser desfeita.
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onCancel}
+            style={{
+              flex: 1, padding: '10px', borderRadius: 9,
+              border: '1.5px solid #e2ddd6', background: '#fff',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              color: '#6b6760', fontFamily: 'inherit',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = '#2c2a26'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = '#e2ddd6'}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              flex: 1, padding: '10px', borderRadius: 9,
+              border: 'none', background: '#c0392b',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              color: '#fff', fontFamily: 'inherit',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#a93226'}
+            onMouseLeave={e => e.currentTarget.style.background = '#c0392b'}
+          >
+            Excluir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Workspace Dropdown ──────────────────────────────────────────────────────
 function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
   const [open, setOpen] = useState(false);
@@ -177,7 +243,6 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#1a1814', letterSpacing: '-0.3px' }}>
             Nova tarefa
@@ -192,7 +257,6 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           >×</button>
         </div>
 
-        {/* Upload de imagem */}
         <label style={{ cursor: 'pointer' }}>
           <div style={{
             border: '2px dashed #e2ddd6', borderRadius: 12, overflow: 'hidden',
@@ -211,7 +275,6 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImage} />
         </label>
 
-        {/* Título */}
         <input
           placeholder="Título da tarefa *"
           value={form.title}
@@ -227,7 +290,6 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
         />
 
-        {/* Descrição */}
         <textarea
           placeholder="Descrição (opcional)..."
           value={form.description}
@@ -243,7 +305,6 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
         />
 
-        {/* Workspace — lista vertical igual à imagem de referência */}
         <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#6b6760', marginBottom: 6 }}>
             Workspace
@@ -293,7 +354,6 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           </div>
         </div>
 
-        {/* Botão criar */}
         <button
           onClick={handleSubmit}
           disabled={!form.title.trim() || loading}
@@ -321,6 +381,7 @@ function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggle
   const [newSub, setNewSub] = useState('');
   const [addingSub, setAddingSub] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const cardRef = useRef(null);
   const dragOffset = useRef({ x: 0, y: 0 });
@@ -376,190 +437,204 @@ function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggle
   const coverImage = task.images_data?.[0]?.image;
 
   return (
-    <div
-      ref={cardRef}
-      onMouseDown={onMouseDown}
-      style={{
-        position: 'absolute',
-        left: task._x, top: task._y,
-        width: 270,
-        background: '#fff',
-        borderRadius: 14,
-        boxShadow: dragging
-          ? '0 20px 60px rgba(0,0,0,0.18)'
-          : '0 2px 12px rgba(0,0,0,0.08)',
-        cursor: dragging ? 'grabbing' : 'grab',
-        userSelect: 'none',
-        transition: dragging ? 'none' : 'box-shadow 0.2s',
-        zIndex: dragging ? 100 : 1,
-        overflow: 'hidden',
-      }}
-    >
-      {coverImage && (
-        <img
-          src={coverImage}
-          alt="capa"
-          style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }}
+    <>
+      {confirmDelete && (
+        <DeleteModal
+          taskTitle={task.title}
+          onConfirm={() => { setConfirmDelete(false); onDelete(task.id); }}
+          onCancel={() => setConfirmDelete(false)}
         />
       )}
 
-      <div style={{ padding: '14px 14px 12px' }}>
-        {assignedTeam && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            background: '#f5f3ef', borderRadius: 6, padding: '2px 8px',
-            fontSize: 10, fontWeight: 600, color: '#6b6760', marginBottom: 8,
-          }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: assignedTeam.color || '#2c2a26',
-            }} />
-            {assignedTeam.name}
-          </div>
-        )}
-
-        {editingTitle ? (
-          <input
-            className="no-drag"
-            value={title}
-            autoFocus
-            onChange={e => setTitle(e.target.value)}
-            onBlur={saveTitle}
-            onKeyDown={e => e.key === 'Enter' && saveTitle()}
-            style={{
-              width: '100%', border: 'none', borderBottom: '2px solid #2c2a26',
-              fontSize: 14, fontWeight: 700, padding: '2px 0',
-              fontFamily: 'inherit', outline: 'none', background: 'transparent',
-              color: '#1a1814', boxSizing: 'border-box',
-            }}
+      <div
+        ref={cardRef}
+        onMouseDown={onMouseDown}
+        style={{
+          position: 'absolute',
+          left: task._x, top: task._y,
+          width: 270,
+          background: '#fff',
+          borderRadius: 14,
+          boxShadow: dragging
+            ? '0 20px 60px rgba(0,0,0,0.18)'
+            : '0 2px 12px rgba(0,0,0,0.08)',
+          cursor: dragging ? 'grabbing' : 'grab',
+          userSelect: 'none',
+          transition: dragging ? 'none' : 'box-shadow 0.2s',
+          zIndex: dragging ? 100 : 1,
+          overflow: 'hidden',
+        }}
+      >
+        {coverImage && (
+          <img
+            src={coverImage}
+            alt="capa"
+            style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }}
           />
-        ) : (
-          <div
-            onDoubleClick={() => setEditingTitle(true)}
-            style={{
-              fontSize: 14, fontWeight: 700, color: '#1a1814',
-              marginBottom: 2, cursor: 'text', lineHeight: 1.4,
-            }}
-          >
-            {task.title}
-          </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 8 }}>
+        <div style={{ padding: '14px 14px 12px' }}>
+          {assignedTeam && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: '#f5f3ef', borderRadius: 6, padding: '2px 8px',
+              fontSize: 10, fontWeight: 600, color: '#6b6760', marginBottom: 8,
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: assignedTeam.color || '#2c2a26',
+              }} />
+              {assignedTeam.name}
+            </div>
+          )}
+
+          {editingTitle ? (
+            <input
+              className="no-drag"
+              value={title}
+              autoFocus
+              onChange={e => setTitle(e.target.value)}
+              onBlur={saveTitle}
+              onKeyDown={e => e.key === 'Enter' && saveTitle()}
+              style={{
+                width: '100%', border: 'none', borderBottom: '2px solid #2c2a26',
+                fontSize: 14, fontWeight: 700, padding: '2px 0',
+                fontFamily: 'inherit', outline: 'none', background: 'transparent',
+                color: '#1a1814', boxSizing: 'border-box',
+              }}
+            />
+          ) : (
+            <div
+              onDoubleClick={() => setEditingTitle(true)}
+              style={{
+                fontSize: 14, fontWeight: 700, color: '#1a1814',
+                marginBottom: 2, cursor: 'text', lineHeight: 1.4,
+              }}
+            >
+              {task.title}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 8 }}>
+            <button
+              className="no-drag"
+              onClick={() => onUpdate(task.id, { completed: !task.completed })}
+              style={{
+                background: task.completed ? '#2c2a26' : 'transparent',
+                border: `1.5px solid ${task.completed ? '#2c2a26' : '#d0ccc5'}`,
+                borderRadius: 6, width: 20, height: 20,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, color: '#fff', flexShrink: 0,
+              }}
+            >
+              {task.completed ? '✓' : ''}
+            </button>
+            <span style={{ fontSize: 11, color: task.completed ? '#2c2a26' : '#a09d97', fontWeight: 500 }}>
+              {task.completed ? 'Concluída' : 'Em andamento'}
+            </span>
+          </div>
+
+          {total > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#a09d97', marginBottom: 4 }}>
+                <span>Subtarefas</span>
+                <span>{done}/{total}</span>
+              </div>
+              <div style={{ background: '#f0ede8', borderRadius: 99, height: 5, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: 99,
+                  width: `${progress}%`,
+                  background: progress === 100 ? '#4caf50' : '#2c2a26',
+                  transition: 'width 0.3s',
+                }} />
+              </div>
+            </div>
+          )}
+
           <button
             className="no-drag"
-            onClick={() => onUpdate(task.id, { completed: !task.completed })}
+            onClick={() => setExpanded(e => !e)}
             style={{
-              background: task.completed ? '#2c2a26' : 'transparent',
-              border: `1.5px solid ${task.completed ? '#2c2a26' : '#d0ccc5'}`,
-              borderRadius: 6, width: 20, height: 20,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, color: '#fff', flexShrink: 0,
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 11, color: '#a09d97', padding: 0, fontFamily: 'inherit',
+              fontWeight: 500,
             }}
           >
-            {task.completed ? '✓' : ''}
+            {expanded ? 'Fechar' : 'Ver subtarefas'}
           </button>
-          <span style={{ fontSize: 11, color: task.completed ? '#2c2a26' : '#a09d97', fontWeight: 500 }}>
-            {task.completed ? 'Concluída' : 'Em andamento'}
-          </span>
+
+          {expanded && (
+            <div className="no-drag" style={{ marginTop: 10 }}>
+              {task.subtasks?.map(sub => (
+                <div key={sub.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 0', borderTop: '1px solid #f0ede8',
+                }}>
+                  <button
+                    onClick={() => onToggleSubtask(sub)}
+                    style={{
+                      background: sub.completed ? '#2c2a26' : 'transparent',
+                      border: `1.5px solid ${sub.completed ? '#2c2a26' : '#d0ccc5'}`,
+                      borderRadius: 5, width: 17, height: 17, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, color: '#fff', flexShrink: 0,
+                    }}
+                  >{sub.completed ? '✓' : ''}</button>
+                  <span style={{
+                    fontSize: 12, color: sub.completed ? '#a09d97' : '#2c2a26',
+                    textDecoration: sub.completed ? 'line-through' : 'none', flex: 1,
+                  }}>
+                    {sub.title}
+                  </span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <input
+                  placeholder="Nova subtarefa..."
+                  value={newSub}
+                  onChange={e => setNewSub(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddSub()}
+                  style={{
+                    flex: 1, border: '1px solid #e2ddd6', borderRadius: 7,
+                    padding: '6px 9px', fontSize: 12, fontFamily: 'inherit',
+                    outline: 'none', background: '#faf9f7',
+                  }}
+                />
+                <button
+                  onClick={handleAddSub}
+                  disabled={addingSub || !newSub.trim()}
+                  style={{
+                    background: '#2c2a26', color: '#fff', border: 'none',
+                    borderRadius: 7, padding: '6px 10px', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 700,
+                  }}
+                >+</button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {total > 0 && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#a09d97', marginBottom: 4 }}>
-              <span>Subtarefas</span>
-              <span>{done}/{total}</span>
-            </div>
-            <div style={{ background: '#f0ede8', borderRadius: 99, height: 5, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', borderRadius: 99,
-                width: `${progress}%`,
-                background: progress === 100 ? '#4caf50' : '#2c2a26',
-                transition: 'width 0.3s',
-              }} />
-            </div>
-          </div>
-        )}
-
-        <button
-          className="no-drag"
-          onClick={() => setExpanded(e => !e)}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 11, color: '#a09d97', padding: 0, fontFamily: 'inherit',
-            fontWeight: 500,
-          }}
-        >
-          {expanded ? 'Fechar' : 'Ver subtarefas'}
-        </button>
-
-        {expanded && (
-          <div className="no-drag" style={{ marginTop: 10 }}>
-            {task.subtasks?.map(sub => (
-              <div key={sub.id} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '5px 0', borderTop: '1px solid #f0ede8',
-              }}>
-                <button
-                  onClick={() => onToggleSubtask(sub)}
-                  style={{
-                    background: sub.completed ? '#2c2a26' : 'transparent',
-                    border: `1.5px solid ${sub.completed ? '#2c2a26' : '#d0ccc5'}`,
-                    borderRadius: 5, width: 17, height: 17, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 10, color: '#fff', flexShrink: 0,
-                  }}
-                >{sub.completed ? '✓' : ''}</button>
-                <span style={{
-                  fontSize: 12, color: sub.completed ? '#a09d97' : '#2c2a26',
-                  textDecoration: sub.completed ? 'line-through' : 'none', flex: 1,
-                }}>
-                  {sub.title}
-                </span>
-              </div>
-            ))}
-            <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              <input
-                placeholder="Nova subtarefa..."
-                value={newSub}
-                onChange={e => setNewSub(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddSub()}
-                style={{
-                  flex: 1, border: '1px solid #e2ddd6', borderRadius: 7,
-                  padding: '6px 9px', fontSize: 12, fontFamily: 'inherit',
-                  outline: 'none', background: '#faf9f7',
-                }}
-              />
-              <button
-                onClick={handleAddSub}
-                disabled={addingSub || !newSub.trim()}
-                style={{
-                  background: '#2c2a26', color: '#fff', border: 'none',
-                  borderRadius: 7, padding: '6px 10px', cursor: 'pointer',
-                  fontSize: 12, fontWeight: 700,
-                }}
-              >+</button>
-            </div>
-          </div>
-        )}
+        <div style={{
+          display: 'flex', justifyContent: 'flex-end',
+          padding: '6px 14px 10px', borderTop: '1px solid #f5f3ef',
+        }}>
+          <button
+            className="no-drag"
+            onClick={() => setConfirmDelete(true)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 11, color: '#c9a09a', fontFamily: 'inherit',
+              fontWeight: 500, padding: '2px 4px', borderRadius: 4,
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = '#c0392b'}
+            onMouseLeave={e => e.currentTarget.style.color = '#c9a09a'}
+          >
+            Excluir
+          </button>
+        </div>
       </div>
-
-      <div style={{
-        display: 'flex', justifyContent: 'flex-end',
-        padding: '6px 14px 10px', borderTop: '1px solid #f5f3ef',
-      }}>
-        <button
-          className="no-drag"
-          onClick={() => onDelete(task.id)}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 11, color: '#c9a09a', fontFamily: 'inherit',
-          }}
-        >
-          Excluir
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -599,7 +674,6 @@ export default function TasksView() {
     })();
   }, []);
 
-  // Filtra tarefas pelo workspace ativo
   const visibleTasks = tasks.filter(t => {
     if (activeWorkspace === null) return !t.team || t.team === '' || t.team === null;
     return t.team === activeWorkspace || t.team === String(activeWorkspace) || Number(t.team) === activeWorkspace;
@@ -662,7 +736,6 @@ export default function TasksView() {
   };
 
   const deleteTask = async (id) => {
-    if (!confirm('Excluir esta tarefa?')) return;
     try {
       await fetch(`${API}/tasks/${id}/`, { method: 'DELETE', headers: authHeaders() });
       setTasks(prev => prev.filter(t => t.id !== id));
@@ -721,8 +794,6 @@ export default function TasksView() {
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#faf9f7' }}>
-
-      {/* Toolbar */}
       <div style={{
         position: 'absolute', top: 16, right: 20, zIndex: 50,
         display: 'flex', alignItems: 'center', gap: 10,
@@ -755,14 +826,13 @@ export default function TasksView() {
         </button>
       </div>
 
-      {/* Canvas */}
       {visibleTasks.length === 0 ? (
         <div style={{
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           height: '100%', gap: 12, userSelect: 'none',
         }}>
-          <div style={{ fontSize: 52, opacity: 0.15, fontWeight: 900, color: '#2c2a26' }}></div>
+          <div style={{ fontSize: 52, opacity: 0.15, fontWeight: 900, color: '#2c2a26' }}>✓</div>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#2c2a26' }}>
             Nenhuma tarefa neste workspace
           </span>
