@@ -36,7 +36,8 @@ class TaskViewSet(ModelViewSet):
 
         created = []
         for file in files:
-            img = TaskImage.objects.create(task=task, image=file)
+            result = cloudinary.uploader.upload(file)
+            img = TaskImage.objects.create(task=task, image_url=result["secure_url"])
             created.append(TaskImageSerializer(img, context={'request': request}).data)
 
         return Response(created, status=status.HTTP_201_CREATED)
