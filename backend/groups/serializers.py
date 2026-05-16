@@ -1,0 +1,47 @@
+from rest_framework import serializers
+from .models import Group, GroupMember, GroupInvite, GroupTask, GroupSubTask
+
+
+class GroupMemberSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_full_name = serializers.CharField(source='user.full_name', read_only=True)
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_avatar = serializers.URLField(source='user.avatar_url', read_only=True)
+
+    class Meta:
+        model = GroupMember
+        fields = ['id', 'user', 'user_email', 'user_full_name', 'user_username', 'user_avatar', 'role', 'joined_at']
+        read_only_fields = ['id', 'joined_at']
+
+
+class GroupSerializer(serializers.ModelSerializer):
+    members = GroupMemberSerializer(many=True, read_only=True)
+    owner_email = serializers.EmailField(source='owner.email', read_only=True)
+
+    class Meta:
+        model = Group
+        fields = ['id', 'name', 'description', 'photo_url', 'banner_url', 'owner', 'owner_email', 'members', 'created_at']
+        read_only_fields = ['id', 'owner', 'created_at']
+
+
+class GroupInviteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GroupInvite
+        fields = ['id', 'group', 'invited_by', 'invited_user', 'status', 'created_at']
+        read_only_fields = ['id', 'invited_by', 'status', 'created_at']
+
+
+class GroupSubTaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GroupSubTask
+        fields = ['id', 'task', 'title', 'completed', 'completed_by', 'assigned_to', 'completed_before_task', 'created_at']
+        read_only_fields = ['id', 'completed_by', 'completed_before_task', 'created_at']
+
+
+class GroupTaskSerializer(serializers.ModelSerializer):
+    subtasks = GroupSubTaskSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = GroupTask
+        fields = ['id', 'group', 'created_by', 'title', 'description', 'completed', 'completed_by', 'assigned_to', 'image_url', 'subtasks', 'created_at']
+        read_only_fields = ['id', 'created_by', 'completed_by', 'created_at']
