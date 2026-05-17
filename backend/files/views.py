@@ -1,3 +1,4 @@
+import cloudinary.uploader
 from django.db import models as db_models
 from rest_framework import status
 from rest_framework.views import APIView
@@ -54,7 +55,18 @@ class FileDetailView(APIView):
         file = self.get_object(pk, request.user)
         if not file:
             return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
-        file.file.delete(save=False)
+        if file.image_url:
+            # Extrai o public_id do Cloudinary da URL e deleta
+            try:
+                # URL pattern: .../files/images/<public_id>.<ext>
+                parts = file.image_url.split('/')
+                public_id_with_ext = parts[-1]
+                public_id = 'files/images/' + public_id_with_ext.rsplit('.', 1)[0]
+                cloudinary.uploader.destroy(public_id)
+            except Exception:
+                pass  # Falha silenciosa — registro será deletado mesmo assim
+        elif file.file:
+            file.file.delete(save=False)
         file.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
