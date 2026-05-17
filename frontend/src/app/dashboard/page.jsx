@@ -4,16 +4,14 @@ import dynamic from 'next/dynamic';
 import TasksView from '@/components/TaskView';
 import DocsView from '@/components/DocsView';
 import TeamsView from '@/components/TeamsView';
-import LoadingSpinner from '@/components/LoadingSpinner';
 
-// Quadro: spin enquanto carrega o Excalidraw
 const ExcalidrawWrapper = dynamic(
   () => import('./ExcalidrawWrapper'),
   {
     ssr: false,
     loading: () => (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <LoadingSpinner type="spin" message="carregando quadro..." fullScreen={false} />
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a09d97' }}>
+        Carregando quadro...
       </div>
     ),
   }
@@ -21,7 +19,7 @@ const ExcalidrawWrapper = dynamic(
 
 const NAV = [
   { id: 'whiteboard', icon: '', label: 'Quadro' },
-  { id: 'tasks',      icon: '', label: 'Tarefas' },
+  { id: 'tasks',      icon: '',  label: 'Tarefas' },
   { id: 'docs',       icon: '', label: 'Docs' },
   { id: 'members',    icon: '', label: 'Equipe' },
   { id: 'settings',   icon: '', label: 'Config' },
@@ -45,24 +43,17 @@ export default function Dashboard() {
   const [active, setActive] = useState('whiteboard');
   const [collapsed, setCollapsed] = useState(false);
   const [username, setUsername] = useState('');
-  const [appLoading, setAppLoading] = useState(true); // loading inicial do dashboard
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    if (!token) { setAppLoading(false); return; }
+    if (!token) return;
     fetch('http://localhost:8000/api/users/me/', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
       .then(data => setUsername(data.username || data.email || ''))
-      .catch(() => {})
-      .finally(() => setAppLoading(false));
+      .catch(() => {});
   }, []);
-
-  // Tela cheia de loading ao abrir o app — walk
-  if (appLoading) {
-    return <LoadingSpinner type="walk" message="abrindo o OpenTask..." size={64} fullScreen />;
-  }
 
   const initial = username ? username[0].toUpperCase() : '?';
 
