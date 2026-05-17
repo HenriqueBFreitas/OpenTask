@@ -1,3 +1,5 @@
+import cloudinary.uploader
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -98,6 +100,57 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
         return super().destroy(request, *args, **kwargs)
 
 
+
+class GroupPhotoUploadView(APIView):
+    """
+    POST /api/groups/<group_id>/upload-photo/
+    multipart/form-data: photo=<file>
+    Faz upload da foto do grupo no Cloudinary e salva a URL.
+    Apenas owner pode alterar.
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, group_id):
+        group = get_object_or_404(Group, pk=group_id)
+        if not is_owner(request.user, group):
+            return Response({'error': 'Apenas o owner pode alterar a foto do grupo.'}, status=403)
+
+        file = request.FILES.get('photo')
+        if not file:
+            return Response({'error': 'Nenhuma imagem enviada. Use o campo "photo".'}, status=400)
+
+        result = cloudinary.uploader.upload(file, folder='groups/photos')
+        group.photo_url = result['secure_url']
+        group.save(update_fields=['photo_url'])
+        return Response({'photo_url': group.photo_url})
+
+
+class GroupBannerUploadView(APIView):
+    """
+    POST /api/groups/<group_id>/upload-banner/
+    multipart/form-data: banner=<file>
+    Faz upload do banner do grupo no Cloudinary e salva a URL.
+    Apenas owner pode alterar.
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, group_id):
+        group = get_object_or_404(Group, pk=group_id)
+        if not is_owner(request.user, group):
+            return Response({'error': 'Apenas o owner pode alterar o banner do grupo.'}, status=403)
+
+        file = request.FILES.get('banner')
+        if not file:
+            return Response({'error': 'Nenhuma imagem enviada. Use o campo "banner".'}, status=400)
+
+        result = cloudinary.uploader.upload(file, folder='groups/banners')
+        group.banner_url = result['secure_url']
+        group.save(update_fields=['banner_url'])
+        return Response({'banner_url': group.banner_url})
+
+
 class SetAdminView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -192,7 +245,43 @@ class GroupMemberFilterView(APIView):
         return Response(GroupMemberFilterSerializer(qs, many=True).data)
 
 
+class GroupUserSearchView(APIView):
+    """
+    Busca usuários por username para convidar ao grupo.
+    ?q=<username>  → retorna id, username, full_name, avatar_url
+    Exclui membros que já estão no grupo.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, group_id):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        group = get_object_or_404(Group, pk=group_id)
+        if not is_admin_or_owner(request.user, group):
+            return Response({'error': 'Apenas admins/owner podem buscar usuários para convite.'}, status=403)
+
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return Response([])
+
+        already_members = GroupMember.objects.filter(group=group).values_list('user_id', flat=True)
+
+        users = User.objects.filter(
+            username__icontains=q
+        ).exclude(pk=request.user.pk).exclude(pk__in=already_members)[:20]
+
+        from friends.serializers import UserSearchSerializer
+        return Response(UserSearchSerializer(users, many=True).data)
+
+
 class InviteCreateView(APIView):
+    """
+    Convida um usuário para o grupo.
+    Aceita duas formas no body:
+      - { "invited_user": <user_id> }   → convite pela lista de amigos
+      - { "username": "<username>" }     → convite pela busca por username
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id):
@@ -200,13 +289,22 @@ class InviteCreateView(APIView):
         if not is_admin_or_owner(request.user, group):
             return Response({'error': 'Apenas admins/owner podem convidar.'}, status=403)
 
-        invited_user_id = request.data.get('invited_user')
-        if not invited_user_id:
-            return Response({'error': 'invited_user é obrigatório.'}, status=400)
-
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        invited_user = get_object_or_404(User, pk=invited_user_id)
+
+        # Suporta convite por user_id (lista de amigos) ou por username (busca)
+        invited_user_id = request.data.get('invited_user')
+        username = request.data.get('username')
+
+        if invited_user_id:
+            invited_user = get_object_or_404(User, pk=invited_user_id)
+        elif username:
+            invited_user = get_object_or_404(User, username=username)
+        else:
+            return Response({'error': 'Informe invited_user (id) ou username.'}, status=400)
+
+        if invited_user == request.user:
+            return Response({'error': 'Você não pode se convidar.'}, status=400)
 
         if GroupMember.objects.filter(group=group, user=invited_user).exists():
             return Response({'error': 'Usuário já é membro do grupo.'}, status=400)

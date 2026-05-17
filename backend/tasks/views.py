@@ -13,7 +13,8 @@ from rest_framework.views import APIView
 class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = [JSONParser]
+    # JSONParser e FormParser são os defaults do DRF; MultiPartParser é necessário para upload de imagens
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
         return Task.objects.filter(user=self.request.user)
