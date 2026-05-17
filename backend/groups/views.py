@@ -4,13 +4,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
-from core.models import Notification
 
-from .models import Group, GroupMember, GroupInvite, GroupTask, GroupSubTask
+from .models import Group, GroupMember, GroupInvite, GroupTask, GroupSubTask, GroupFile
 from .serializers import (
-    GroupSerializer, GroupMemberSerializer,
-    GroupInviteSerializer, GroupTaskSerializer, GroupSubTaskSerializer
+    GroupSerializer, GroupMemberSerializer, GroupMemberFilterSerializer,
+    GroupInviteSerializer, GroupTaskSerializer, GroupSubTaskSerializer,
+    GroupFileSerializer,
 )
+from core.models import Notification
 
 
 def get_member(user, group):
@@ -38,6 +39,31 @@ def create_notification(recipient, sender, notif_type, object_id, message):
         object_id=object_id,
         message=message,
     )
+
+
+def can_delete_task(requester, task):
+    """
+    Owner → deleta de todos.
+    Admin → deleta de membros e os próprios. Não deleta de outros admins/owner.
+    Member → só os próprios.
+    """
+    if requester.role == 'owner':
+        return True
+    creator_member = get_member(task.created_by, task.group)
+    creator_role = creator_member.role if creator_member else 'member'
+    if requester.role == 'admin':
+        return creator_role == 'member' or task.created_by == requester.user
+    return task.created_by == requester.user
+
+
+def can_delete_file(requester, group_file):
+    if requester.role == 'owner':
+        return True
+    uploader_member = get_member(group_file.uploaded_by, group_file.group)
+    uploader_role = uploader_member.role if uploader_member else 'member'
+    if requester.role == 'admin':
+        return uploader_role == 'member' or group_file.uploaded_by == requester.user
+    return group_file.uploaded_by == requester.user
 
 
 class GroupListCreateView(generics.ListCreateAPIView):
@@ -73,7 +99,6 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class SetAdminView(APIView):
-    """Owner define ou remove admin de um membro."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id, user_id):
@@ -92,7 +117,6 @@ class SetAdminView(APIView):
 
 
 class TransferOwnershipView(APIView):
-    """Owner transfere ownership para outro membro."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id, user_id):
@@ -111,7 +135,6 @@ class TransferOwnershipView(APIView):
 
 
 class LeaveGroupView(APIView):
-    """Membro/admin sai do grupo. Owner só sai após transferir ownership."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id):
@@ -123,8 +146,53 @@ class LeaveGroupView(APIView):
         return Response({'status': 'saiu do grupo'})
 
 
+class KickMemberView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, group_id, user_id):
+        group = get_object_or_404(Group, pk=group_id)
+        requester = get_member(request.user, group)
+        if not requester or requester.role not in ('admin', 'owner'):
+            return Response({'error': 'Sem permissão para expulsar membros.'}, status=403)
+        target = get_object_or_404(GroupMember, group=group, user_id=user_id)
+        if target.user == request.user:
+            return Response({'error': 'Use a rota de sair do grupo.'}, status=400)
+        if target.role == 'owner':
+            return Response({'error': 'Não é possível expulsar o owner.'}, status=400)
+        if requester.role == 'admin' and target.role == 'admin':
+            return Response({'error': 'Admins só podem expulsar membros.'}, status=403)
+        target.delete()
+        return Response({'status': 'membro expulso'})
+
+
+class GroupMemberFilterView(APIView):
+    """
+    Retorna membros ativos do grupo para popular dropdowns de filtro.
+    ?role=admin|member|owner  → filtra por cargo atual
+    ?user_id=<id>             → retorna só esse membro com cargo atual
+    Membros que saíram/foram expulsos não aparecem.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, group_id):
+        group = get_object_or_404(Group, pk=group_id)
+        if not get_member(request.user, group):
+            return Response({'error': 'Sem acesso.'}, status=403)
+
+        qs = GroupMember.objects.filter(group=group).select_related('user')
+
+        role = request.query_params.get('role')
+        user_id = request.query_params.get('user_id')
+
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        elif role:
+            qs = qs.filter(role=role)
+
+        return Response(GroupMemberFilterSerializer(qs, many=True).data)
+
+
 class InviteCreateView(APIView):
-    """Admin ou owner convida um usuário (por ID ou da lista de amigos)."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id):
@@ -164,7 +232,6 @@ class InviteCreateView(APIView):
 
 
 class InviteRespondView(APIView):
-    """Usuário convidado aceita ou recusa o convite."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, invite_id):
@@ -202,13 +269,28 @@ class GroupTaskListCreateView(generics.ListCreateAPIView):
         group = get_object_or_404(Group, pk=self.kwargs['group_id'])
         if not get_member(self.request.user, group):
             return GroupTask.objects.none()
-        return GroupTask.objects.filter(group=group)
+
+        qs = GroupTask.objects.filter(group=group)
+
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            qs = qs.filter(created_by_id=user_id)
+
+        role = self.request.query_params.get('role')
+        if role:
+            member_ids = GroupMember.objects.filter(
+                group=group, role=role
+            ).values_list('user_id', flat=True)
+            qs = qs.filter(created_by_id__in=member_ids)
+
+        return qs
 
     def perform_create(self, serializer):
         group = get_object_or_404(Group, pk=self.kwargs['group_id'])
-        if not is_admin_or_owner(self.request.user, group):
+        member = get_member(self.request.user, group)
+        if not member:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('Apenas admins/owner podem criar tasks.')
+            raise PermissionDenied('Você não é membro deste grupo.')
         serializer.save(group=group, created_by=self.request.user)
 
 
@@ -221,18 +303,24 @@ class GroupTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         task = self.get_object()
+        requester = get_member(request.user, task.group)
+        if not requester:
+            return Response(status=403)
+
         if set(request.data.keys()) <= {'completed'}:
-            return self._toggle_complete(request, task)
-        if not is_admin_or_owner(request.user, task.group):
+            return self._toggle_complete(request, task, requester)
+
+        if task.created_by != request.user and requester.role not in ('admin', 'owner'):
             return Response({'error': 'Sem permissão para editar.'}, status=403)
         return super().update(request, *args, **kwargs)
 
-    def _toggle_complete(self, request, task):
+    def _toggle_complete(self, request, task, requester):
         assigned = list(task.assigned_to.values_list('id', flat=True))
-        member = get_member(request.user, task.group)
-        if not member:
-            return Response(status=403)
-        can = (not assigned) or (request.user.id in assigned) or (member.role in ('admin', 'owner'))
+        can = (
+            (not assigned) or
+            (request.user.id in assigned) or
+            (requester.role in ('admin', 'owner'))
+        )
         if not can:
             return Response({'error': 'Você não foi delegado para essa task.'}, status=403)
         task.completed = request.data['completed']
@@ -242,8 +330,9 @@ class GroupTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         task = self.get_object()
-        if not is_admin_or_owner(request.user, task.group):
-            return Response({'error': 'Sem permissão.'}, status=403)
+        requester = get_member(request.user, task.group)
+        if not requester or not can_delete_task(requester, task):
+            return Response({'error': 'Sem permissão para deletar.'}, status=403)
         return super().destroy(request, *args, **kwargs)
 
 
@@ -256,39 +345,43 @@ class GroupSubTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         subtask = self.get_object()
+        requester = get_member(request.user, subtask.task.group)
+
         if set(request.data.keys()) <= {'completed'}:
             assigned = list(subtask.assigned_to.values_list('id', flat=True))
-            member = get_member(request.user, subtask.task.group)
-            can = (not assigned) or (request.user.id in assigned) or (member and member.role in ('admin', 'owner'))
+            can = (
+                (not assigned) or
+                (request.user.id in assigned) or
+                (requester and requester.role in ('admin', 'owner'))
+            )
             if not can:
                 return Response({'error': 'Você não foi delegado para essa subtask.'}, status=403)
             subtask.completed = request.data['completed']
             subtask.completed_by = request.user if subtask.completed else None
             subtask.save()
             return Response(GroupSubTaskSerializer(subtask).data)
-        if not is_admin_or_owner(request.user, subtask.task.group):
-            return Response({'error': 'Sem permissão.'}, status=403)
+
+        if subtask.task.created_by != request.user and (not requester or requester.role not in ('admin', 'owner')):
+            return Response({'error': 'Sem permissão para editar.'}, status=403)
         return super().update(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         subtask = self.get_object()
-        if not is_admin_or_owner(request.user, subtask.task.group):
+        requester = get_member(request.user, subtask.task.group)
+        if not requester or not can_delete_task(requester, subtask.task):
             return Response({'error': 'Sem permissão.'}, status=403)
         return super().destroy(request, *args, **kwargs)
 
 
 class ShareTaskToGroupView(APIView):
-    """
-    move=true  → move a task (sai do perfil do user)
-    move=false → copia a task (mantém no perfil, cria cópia no grupo)
-    """
+    """Qualquer membro pode compartilhar uma task pessoal para o grupo."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id, task_id):
         from tasks.models import Task
         group = get_object_or_404(Group, pk=group_id)
-        if not is_admin_or_owner(request.user, group):
-            return Response({'error': 'Sem permissão.'}, status=403)
+        if not get_member(request.user, group):
+            return Response({'error': 'Você não é membro deste grupo.'}, status=403)
         task = get_object_or_404(Task, pk=task_id, user=request.user)
         move = request.data.get('move', False)
 
@@ -304,3 +397,123 @@ class ShareTaskToGroupView(APIView):
             task.delete()
 
         return Response(GroupTaskSerializer(group_task).data, status=201)
+
+
+class GroupFileListCreateView(APIView):
+    """
+    GET  /api/groups/<id>/files/  → lista arquivos do grupo
+    POST /api/groups/<id>/files/  → vincula arquivo existente ao grupo
+    body: { "file": <file_id> }
+
+    Filtros GET:
+      ?user_id=<id>  → arquivos de um usuário específico
+      ?role=<cargo>  → arquivos de membros com esse cargo atual
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, group_id):
+        group = get_object_or_404(Group, pk=group_id)
+        if not get_member(request.user, group):
+            return Response({'error': 'Sem acesso.'}, status=403)
+
+        qs = GroupFile.objects.filter(group=group).select_related('file', 'uploaded_by')
+
+        user_id = request.query_params.get('user_id')
+        if user_id:
+            qs = qs.filter(uploaded_by_id=user_id)
+
+        role = request.query_params.get('role')
+        if role:
+            member_ids = GroupMember.objects.filter(
+                group=group, role=role
+            ).values_list('user_id', flat=True)
+            qs = qs.filter(uploaded_by_id__in=member_ids)
+
+        return Response(GroupFileSerializer(qs, many=True, context={'request': request}).data)
+
+    def post(self, request, group_id):
+        from files.models import File
+        group = get_object_or_404(Group, pk=group_id)
+        if not get_member(request.user, group):
+            return Response({'error': 'Sem acesso.'}, status=403)
+
+        file_id = request.data.get('file')
+        if not file_id:
+            return Response({'error': 'file é obrigatório.'}, status=400)
+
+        file = get_object_or_404(File, pk=file_id, user=request.user)
+
+        group_file, created = GroupFile.objects.get_or_create(
+            group=group,
+            file=file,
+            defaults={'uploaded_by': request.user}
+        )
+
+        if not created:
+            return Response({'error': 'Arquivo já está no grupo.'}, status=400)
+
+        return Response(GroupFileSerializer(group_file, context={'request': request}).data, status=201)
+
+
+class GroupFileDetailView(APIView):
+    """
+    GET    /api/groups/<id>/files/<pk>/
+    DELETE /api/groups/<id>/files/<pk>/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, group_id, pk):
+        group = get_object_or_404(Group, pk=group_id)
+        if not get_member(request.user, group):
+            return Response({'error': 'Sem acesso.'}, status=403)
+        group_file = get_object_or_404(GroupFile, pk=pk, group=group)
+        return Response(GroupFileSerializer(group_file, context={'request': request}).data)
+
+    def delete(self, request, group_id, pk):
+        group = get_object_or_404(Group, pk=group_id)
+        requester = get_member(request.user, group)
+        if not requester:
+            return Response({'error': 'Sem acesso.'}, status=403)
+        group_file = get_object_or_404(GroupFile, pk=pk, group=group)
+        if not can_delete_file(requester, group_file):
+            return Response({'error': 'Sem permissão para remover este arquivo.'}, status=403)
+        group_file.delete()
+        return Response(status=204)
+
+
+class ShareFileToGroupView(APIView):
+    """
+    Qualquer membro pode compartilhar um arquivo pessoal para o grupo.
+    body: { "file": <file_id>, "move": true|false }
+    move=true  → remove o File pessoal
+    move=false → mantém o File pessoal, só vincula ao grupo
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        from files.models import File
+        group = get_object_or_404(Group, pk=group_id)
+        if not get_member(request.user, group):
+            return Response({'error': 'Você não é membro deste grupo.'}, status=403)
+
+        file_id = request.data.get('file')
+        if not file_id:
+            return Response({'error': 'file é obrigatório.'}, status=400)
+
+        file = get_object_or_404(File, pk=file_id, user=request.user)
+        move = request.data.get('move', False)
+
+        group_file, created = GroupFile.objects.get_or_create(
+            group=group,
+            file=file,
+            defaults={'uploaded_by': request.user}
+        )
+
+        if not created:
+            return Response({'error': 'Arquivo já está no grupo.'}, status=400)
+
+        if move:
+            file.task_files.all().delete()
+            file.delete()
+
+        return Response(GroupFileSerializer(group_file, context={'request': request}).data, status=201)

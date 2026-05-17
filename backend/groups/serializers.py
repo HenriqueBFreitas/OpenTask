@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Group, GroupMember, GroupInvite, GroupTask, GroupSubTask
+from .models import Group, GroupMember, GroupInvite, GroupTask, GroupSubTask, GroupFile
 
 
 class GroupMemberSerializer(serializers.ModelSerializer):
@@ -12,6 +12,18 @@ class GroupMemberSerializer(serializers.ModelSerializer):
         model = GroupMember
         fields = ['id', 'user', 'user_email', 'user_full_name', 'user_username', 'user_avatar', 'role', 'joined_at']
         read_only_fields = ['id', 'joined_at']
+
+
+class GroupMemberFilterSerializer(serializers.ModelSerializer):
+    """Retorna membros ativos com cargo atual — usado nos dropdowns de filtro."""
+    user_id = serializers.IntegerField(source='user.id', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+    full_name = serializers.CharField(source='user.full_name', read_only=True)
+    avatar_url = serializers.URLField(source='user.avatar_url', read_only=True)
+
+    class Meta:
+        model = GroupMember
+        fields = ['user_id', 'username', 'full_name', 'avatar_url', 'role']
 
 
 class GroupSerializer(serializers.ModelSerializer):
@@ -45,3 +57,23 @@ class GroupTaskSerializer(serializers.ModelSerializer):
         model = GroupTask
         fields = ['id', 'group', 'created_by', 'title', 'description', 'completed', 'completed_by', 'assigned_to', 'image_url', 'subtasks', 'created_at']
         read_only_fields = ['id', 'created_by', 'completed_by', 'created_at']
+
+
+class GroupFileSerializer(serializers.ModelSerializer):
+    file_id = serializers.IntegerField(source='file.id', read_only=True)
+    original_name = serializers.CharField(source='file.original_name', read_only=True)
+    size = serializers.IntegerField(source='file.size', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    uploaded_by_username = serializers.CharField(source='uploaded_by.username', read_only=True)
+    uploaded_by_full_name = serializers.CharField(source='uploaded_by.full_name', read_only=True)
+
+    class Meta:
+        model = GroupFile
+        fields = ['id', 'file_id', 'original_name', 'size', 'file_url', 'uploaded_by', 'uploaded_by_username', 'uploaded_by_full_name', 'attached_at']
+        read_only_fields = fields
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if request and obj.file.file:
+            return request.build_absolute_uri(obj.file.file.url)
+        return None

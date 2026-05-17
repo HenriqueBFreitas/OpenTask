@@ -115,3 +115,25 @@ class GroupSubTask(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class GroupFile(models.Model):
+    group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='files')
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_group_files'
+    )
+    file = models.ForeignKey(
+        'files.File',
+        on_delete=models.CASCADE,
+        related_name='group_files'
+    )
+    attached_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('group', 'file')
+
+    def __str__(self):
+        return f"{self.file.original_name} → {self.group.name}"
