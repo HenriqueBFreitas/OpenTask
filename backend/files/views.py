@@ -14,6 +14,7 @@ class FileListCreateView(APIView):
     """
     GET  /api/files/          → lista todos os arquivos do usuário autenticado
     POST /api/files/          → faz upload de um arquivo (multipart/form-data)
+                                campos opcionais: nickname, content_type, object_id
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -34,6 +35,7 @@ class FileListCreateView(APIView):
 class FileDetailView(APIView):
     """
     GET    /api/files/<id>/   → retorna um arquivo
+    PATCH  /api/files/<id>/   → atualiza nickname (original_name é protegido)
     DELETE /api/files/<id>/   → deleta o arquivo (registro + arquivo físico)
     """
     permission_classes = [IsAuthenticated]
@@ -50,6 +52,20 @@ class FileDetailView(APIView):
             return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = FileSerializer(file, context={'request': request})
         return Response(serializer.data)
+
+    def patch(self, request, pk):
+        file = self.get_object(pk, request.user)
+        if not file:
+            return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data.copy()
+        data.pop('original_name', None)
+
+        serializer = FileSerializer(file, data=data, partial=True, context={'request': request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         file = self.get_object(pk, request.user)
