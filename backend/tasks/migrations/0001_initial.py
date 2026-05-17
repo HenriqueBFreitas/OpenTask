@@ -33,7 +33,7 @@ class Migration(migrations.Migration):
             name='TaskImage',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('image_url', models.URLField(blank=True, null=True)),
+                ('image', models.ImageField(upload_to='tasks/')),
                 ('uploaded_at', models.DateTimeField(auto_now_add=True)),
             ],
         ),
