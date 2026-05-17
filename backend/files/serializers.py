@@ -18,6 +18,7 @@ MAX_USER_STORAGE = 500 * 1024 * 1024    # 500 MB
 class FileSerializer(serializers.ModelSerializer):
 
     file_url = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = File
@@ -27,8 +28,12 @@ class FileSerializer(serializers.ModelSerializer):
             'file_url',
             'image_url',
             'original_name',
+            'nickname',
+            'display_name',
             'size',
             'uploaded_at',
+            'content_type',
+            'object_id',
         ]
 
         read_only_fields = [
@@ -37,16 +42,19 @@ class FileSerializer(serializers.ModelSerializer):
             'uploaded_at',
             'file_url',
             'image_url',
+            'display_name',
         ]
 
     def get_file_url(self, obj):
-        # Imagens ficam no Cloudinary — retorna image_url diretamente
         if obj.image_url:
             return obj.image_url
         request = self.context.get('request')
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)
         return None
+
+    def get_display_name(self, obj):
+        return obj.display_name()
 
     def validate_file(self, value):
         ext = os.path.splitext(value.name)[1].lower().replace('.', '')
@@ -72,6 +80,11 @@ class FileSerializer(serializers.ModelSerializer):
 
         return value
 
+    def validate_nickname(self, value):
+        if value and len(value.strip()) == 0:
+            raise serializers.ValidationError('O apelido não pode ser apenas espaços.')
+        return value.strip() if value else value
+
     def create(self, validated_data):
         user = self.context['request'].user
         uploaded_file = validated_data.get('file')
@@ -79,7 +92,6 @@ class FileSerializer(serializers.ModelSerializer):
         ext = os.path.splitext(uploaded_file.name)[1].lower().replace('.', '')
 
         if ext in IMAGE_EXTENSIONS:
-            # Upload no Cloudinary — não salva no disco
             result = cloudinary.uploader.upload(uploaded_file, folder='files/images')
             instance = File.objects.create(
                 user=user,
@@ -90,7 +102,6 @@ class FileSerializer(serializers.ModelSerializer):
             )
             return instance
 
-        # Outros arquivos salvam normalmente no storage
         validated_data['user'] = user
         return super().create(validated_data)
 
