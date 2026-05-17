@@ -1,5 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import LoadingSpinner from '@/components/LoadingSpinner';
+
 
 const API = 'http://localhost:8000/api';
 const getToken = () => localStorage.getItem('access_token');
@@ -441,8 +443,11 @@ export default function DocsView() {
   };
 
   if (loading) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a09d97', fontSize: 13 }}>Carregando...</div>
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <LoadingSpinner type="pulse" message="carregando arquivos..." fullScreen={false} />
+    </div>
   );
+
 
   return (
     <div
