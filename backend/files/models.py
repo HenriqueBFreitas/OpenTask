@@ -30,7 +30,9 @@ class File(models.Model):
     )
 
     file = models.FileField(
-        upload_to=user_file_path
+        upload_to=user_file_path,
+        blank=True,
+        null=True
     )
 
     original_name = models.CharField(
@@ -46,7 +48,10 @@ class File(models.Model):
         help_text='Nome amigável opcional para o arquivo.'
     )
 
-    size = models.BigIntegerField()
+    size = models.BigIntegerField(default=0)
+
+    # Preenchido quando o arquivo é uma imagem (upload via Cloudinary)
+    image_url = models.URLField(blank=True, null=True)
 
     uploaded_at = models.DateTimeField(
         auto_now_add=True
@@ -67,15 +72,10 @@ class File(models.Model):
     content_object = GenericForeignKey('content_type', 'object_id')
 
     def save(self, *args, **kwargs):
-        if self.pk:
-            # Impede alteração do original_name após criação
-            original = File.objects.filter(pk=self.pk).values('original_name').first()
-            if original:
-                self.original_name = original['original_name']
-        else:
-            if not self.original_name:
-                self.original_name = os.path.basename(self.file.name)
-        self.size = self.file.size
+        if self.file and not self.original_name:
+            self.original_name = os.path.basename(self.file.name)
+        if self.file and not self.size:
+            self.size = self.file.size
         super().save(*args, **kwargs)
 
     def display_name(self):

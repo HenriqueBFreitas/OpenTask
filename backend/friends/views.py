@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from django.db.models import Q
+from django.db.models import Q  # usado em FriendRequestSendView, FriendListView, FriendRemoveView
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 
@@ -24,7 +24,7 @@ def create_notification(recipient, sender, notif_type, object_id, message):
 
 
 class UserSearchView(APIView):
-    """Busca usuários por username ou full_name."""
+    """Busca usuários por username (retorna id, username, full_name e avatar_url)."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -32,7 +32,7 @@ class UserSearchView(APIView):
         if not q:
             return Response([])
         users = User.objects.filter(
-            Q(username__icontains=q) | Q(full_name__icontains=q)
+            username__icontains=q
         ).exclude(pk=request.user.pk)[:20]
         return Response(UserSearchSerializer(users, many=True).data)
 
