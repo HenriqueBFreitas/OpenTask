@@ -16,6 +16,7 @@ MAX_USER_STORAGE = 500 * 1024 * 1024    # 500 MB
 class FileSerializer(serializers.ModelSerializer):
 
     file_url = serializers.SerializerMethodField()
+    display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = File
@@ -24,15 +25,20 @@ class FileSerializer(serializers.ModelSerializer):
             'file',
             'file_url',
             'original_name',
+            'nickname',
+            'display_name',
             'size',
             'uploaded_at',
+            'content_type',
+            'object_id',
         ]
 
         read_only_fields = [
-            'original_name',
+            'original_name',    
             'size',
             'uploaded_at',
             'file_url',
+            'display_name',
         ]
 
     def get_file_url(self, obj):
@@ -40,6 +46,9 @@ class FileSerializer(serializers.ModelSerializer):
         if obj.file and request:
             return request.build_absolute_uri(obj.file.url)
         return None
+
+    def get_display_name(self, obj):
+        return obj.display_name()
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
@@ -68,6 +77,11 @@ class FileSerializer(serializers.ModelSerializer):
             )
 
         return value
+
+    def validate_nickname(self, value):
+        if value and len(value.strip()) == 0:
+            raise serializers.ValidationError('O apelido não pode ser apenas espaços.')
+        return value.strip() if value else value
 
 
 class TaskFileSerializer(serializers.ModelSerializer):
