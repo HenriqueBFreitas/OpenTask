@@ -1,4 +1,7 @@
+'use client';
+
 import { useState, useRef, useCallback, useEffect } from 'react';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
@@ -787,10 +790,11 @@ export default function TasksView() {
   }, []);
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a09d97', fontSize: 14 }}>
-      Carregando tarefas...
-    </div>
-  );
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+    <LoadingSpinner type="bounce" message="carregando tarefas..." fullScreen={false} />
+  </div>
+);
+
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#faf9f7' }}>
