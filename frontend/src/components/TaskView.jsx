@@ -1,3 +1,4 @@
+'use client';
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -45,7 +46,6 @@ function DeleteModal({ taskTitle, onConfirm, onCancel }) {
             Esta ação não pode ser desfeita.
           </div>
         </div>
-
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             onClick={onCancel}
@@ -54,13 +54,10 @@ function DeleteModal({ taskTitle, onConfirm, onCancel }) {
               border: '1.5px solid #e2ddd6', background: '#fff',
               fontSize: 13, fontWeight: 600, cursor: 'pointer',
               color: '#6b6760', fontFamily: 'inherit',
-              transition: 'border-color 0.15s',
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = '#2c2a26'}
             onMouseLeave={e => e.currentTarget.style.borderColor = '#e2ddd6'}
-          >
-            Cancelar
-          </button>
+          >Cancelar</button>
           <button
             onClick={onConfirm}
             style={{
@@ -68,21 +65,18 @@ function DeleteModal({ taskTitle, onConfirm, onCancel }) {
               border: 'none', background: '#c0392b',
               fontSize: 13, fontWeight: 700, cursor: 'pointer',
               color: '#fff', fontFamily: 'inherit',
-              transition: 'background 0.15s',
             }}
             onMouseEnter={e => e.currentTarget.style.background = '#a93226'}
             onMouseLeave={e => e.currentTarget.style.background = '#c0392b'}
-          >
-            Excluir
-          </button>
+          >Excluir</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Workspace Dropdown ──────────────────────────────────────────────────────
-function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
+// ─── Workspace Dropdown (seletor de visualização — uma por vez) ──────────────
+function WorkspaceDropdown({ groups, activeWorkspace, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -96,11 +90,11 @@ function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
 
   const activeLabel = activeWorkspace === null
     ? 'Pessoal'
-    : teams.find(t => t.id === activeWorkspace)?.name || 'Pessoal';
+    : groups.find(g => g.id === activeWorkspace)?.name || 'Pessoal';
 
   const items = [
     { id: null, label: 'Pessoal', color: '#a09d97' },
-    ...teams.map(t => ({ id: t.id, label: t.name, color: t.color || '#2c2a26' })),
+    ...groups.map(g => ({ id: g.id, label: g.name, color: g.color || '#2c2a26' })),
   ];
 
   return (
@@ -121,7 +115,6 @@ function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
           alignItems: 'center',
           gap: 8,
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-          transition: 'border-color 0.15s',
           minWidth: 140,
         }}
         onMouseEnter={e => e.currentTarget.style.borderColor = '#2c2a26'}
@@ -131,7 +124,7 @@ function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
           width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
           background: activeWorkspace === null
             ? '#a09d97'
-            : (teams.find(t => t.id === activeWorkspace)?.color || '#2c2a26'),
+            : (groups.find(g => g.id === activeWorkspace)?.color || '#2c2a26'),
         }} />
         <span style={{ flex: 1, textAlign: 'left' }}>{activeLabel}</span>
         <span style={{ fontSize: 10, color: '#a09d97' }}>{open ? '▲' : '▼'}</span>
@@ -146,10 +139,9 @@ function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
           border: '1.5px solid #e2ddd6',
           borderRadius: 12,
           boxShadow: '0 8px 32px rgba(0,0,0,0.10)',
-          minWidth: 190,
+          minWidth: 200,
           zIndex: 200,
           padding: 4,
-          overflow: 'hidden',
         }}>
           {items.map((item, i) => {
             const isActive = item.id === activeWorkspace;
@@ -172,7 +164,6 @@ function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  transition: 'background 0.1s',
                 }}
                 onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#faf9f7'; }}
                 onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'none'; }}
@@ -194,14 +185,14 @@ function WorkspaceDropdown({ teams, activeWorkspace, onChange }) {
   );
 }
 
-// ─── Modal de criação ────────────────────────────────────────────────────────
-function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) {
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    image: null,
-    team: defaultTeam !== null ? String(defaultTeam) : '',
-  });
+// ─── Modal de criação — workspace multi-select ───────────────────────────────
+function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }) {
+  // isPessoal e grupos são independentes — uma task pode ser de ambos ao mesmo tempo
+  const [isPessoal, setIsPessoal] = useState(defaultGroup === null);
+  const [selectedGroups, setSelectedGroups] = useState(
+    defaultGroup !== null ? [defaultGroup] : []
+  );
+  const [form, setForm] = useState({ title: '', description: '', image: null });
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
 
@@ -212,18 +203,23 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
     setPreview(URL.createObjectURL(file));
   };
 
+  const toggleGroup = (groupId) => {
+    if (groupId === null) {
+      setIsPessoal(p => !p);
+      return;
+    }
+    setSelectedGroups(prev =>
+      prev.includes(groupId) ? prev.filter(id => id !== groupId) : [...prev, groupId]
+    );
+  };
+
   const handleSubmit = async () => {
     if (!form.title.trim()) return;
     setLoading(true);
-    await onCreate(form);
+    await onCreate({ ...form, groups: selectedGroups, isPessoal });
     setLoading(false);
     onClose();
   };
-
-  const allOptions = [
-    { value: '', label: 'Pessoal', color: '#a09d97' },
-    ...teams.map(t => ({ value: String(t.id), label: t.name, color: t.color || '#2c2a26' })),
-  ];
 
   return (
     <div
@@ -240,6 +236,7 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           background: '#fff', borderRadius: 18, padding: 32, width: 440,
           boxShadow: '0 24px 80px rgba(0,0,0,0.18)',
           display: 'flex', flexDirection: 'column', gap: 14,
+          maxHeight: '90vh', overflowY: 'auto',
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -257,6 +254,7 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           >×</button>
         </div>
 
+        {/* Imagem */}
         <label style={{ cursor: 'pointer' }}>
           <div style={{
             border: '2px dashed #e2ddd6', borderRadius: 12, overflow: 'hidden',
@@ -275,6 +273,7 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImage} />
         </label>
 
+        {/* Título */}
         <input
           placeholder="Título da tarefa *"
           value={form.title}
@@ -290,6 +289,7 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
         />
 
+        {/* Descrição */}
         <textarea
           placeholder="Descrição (opcional)..."
           value={form.description}
@@ -305,53 +305,55 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
         />
 
+        {/* Workspace multi-select */}
         <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#6b6760', marginBottom: 6 }}>
             Workspace
+            {selectedGroups.length > 1 && (
+              <span style={{
+                marginLeft: 8, background: '#2c2a26', color: '#fff',
+                borderRadius: 99, padding: '1px 7px', fontSize: 11, fontWeight: 700,
+              }}>
+                {selectedGroups.length} selecionados
+              </span>
+            )}
           </div>
           <div style={{
             border: '1.5px solid #e2ddd6', borderRadius: 10,
             overflow: 'hidden', background: '#faf9f7',
           }}>
-            {allOptions.map((opt, i) => {
-              const isSelected = form.team === opt.value;
+            {/* Pessoal */}
+            <WorkspaceOption
+              label="Pessoal"
+              color="#a09d97"
+              selected={isPessoal}
+              isCheckbox={true}
+              onClick={() => toggleGroup(null)}
+              borderTop={false}
+            />
+
+            {/* Grupos */}
+            {groups.map((g, i) => {
+              const isSelected = selectedGroups.includes(g.id);
               return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setForm(f => ({ ...f, team: opt.value }))}
-                  style={{
-                    width: '100%',
-                    background: isSelected ? '#f0ede8' : 'transparent',
-                    border: 'none',
-                    borderTop: i > 0 ? '1px solid #f0ede8' : 'none',
-                    padding: '11px 14px',
-                    fontSize: 14,
-                    fontWeight: isSelected ? 600 : 400,
-                    color: isSelected ? '#1a1814' : '#4a4845',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    textAlign: 'left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f5f3ef'; }}
-                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <span style={{
-                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                    background: opt.color,
-                  }} />
-                  {opt.label}
-                  {isSelected && (
-                    <span style={{ marginLeft: 'auto', fontSize: 13, color: '#2c2a26' }}>✓</span>
-                  )}
-                </button>
+                <WorkspaceOption
+                  key={g.id}
+                  label={g.name}
+                  color={g.color || '#2c2a26'}
+                  selected={isSelected}
+                  isCheckbox={true}
+                  onClick={() => toggleGroup(g.id)}
+                  borderTop={true}
+                  photoUrl={g.photo_url}
+                />
               );
             })}
           </div>
+          {groups.length === 0 && (
+            <div style={{ fontSize: 11, color: '#a09d97', marginTop: 6 }}>
+              Você ainda não faz parte de nenhum grupo.
+            </div>
+          )}
         </div>
 
         <button
@@ -373,8 +375,70 @@ function CreateTaskModal({ onClose, onCreate, teams = [], defaultTeam = null }) 
   );
 }
 
+function WorkspaceOption({ label, color, selected, isCheckbox, onClick, borderTop, photoUrl }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        background: selected ? '#f0ede8' : 'transparent',
+        border: 'none',
+        borderTop: borderTop ? '1px solid #f0ede8' : 'none',
+        padding: '11px 14px',
+        fontSize: 14,
+        fontWeight: selected ? 600 : 400,
+        color: selected ? '#1a1814' : '#4a4845',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        textAlign: 'left',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f5f3ef'; }}
+      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
+    >
+      {/* Avatar do grupo ou bolinha */}
+      {photoUrl ? (
+        <img
+          src={photoUrl}
+          alt={label}
+          style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+        />
+      ) : (
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+          background: color,
+        }} />
+      )}
+
+      <span style={{ flex: 1 }}>{label}</span>
+
+      {/* Checkbox para grupos, checkmark simples para Pessoal */}
+      {isCheckbox ? (
+        <span style={{
+          width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+          border: selected ? 'none' : '1.5px solid #c5c2bc',
+          background: selected ? '#2c2a26' : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 10, color: '#fff',
+          transition: 'background 0.15s',
+        }}>
+          {selected ? '✓' : ''}
+        </span>
+      ) : (
+        selected && (
+          <span style={{ fontSize: 13, color: '#2c2a26' }}>✓</span>
+        )
+      )}
+    </button>
+  );
+}
+
 // ─── Card de tarefa ──────────────────────────────────────────────────────────
-function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggleSubtask, onPositionChange }) {
+function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggleSubtask, onPositionChange }) {
   const [expanded, setExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task.title);
@@ -430,11 +494,16 @@ function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggle
     setAddingSub(false);
   };
 
-  const assignedTeam = teams.find(t => t.id === task.team || t.id === Number(task.team));
+  // Task pode pertencer a vários grupos
+  const taskGroupIds = Array.isArray(task.groups)
+    ? task.groups
+    : (task.group ? [task.group] : []);
+  const assignedGroups = groups.filter(g => taskGroupIds.includes(g.id) || taskGroupIds.includes(String(g.id)));
+
   const done = task.subtasks?.filter(s => s.completed).length || 0;
   const total = task.subtasks?.length || 0;
   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-  const coverImage = task.images_data?.[0]?.image;
+  const coverImage = task.images_data?.[0]?.image_url;
 
   return (
     <>
@@ -474,17 +543,23 @@ function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggle
         )}
 
         <div style={{ padding: '14px 14px 12px' }}>
-          {assignedTeam && (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: '#f5f3ef', borderRadius: 6, padding: '2px 8px',
-              fontSize: 10, fontWeight: 600, color: '#6b6760', marginBottom: 8,
-            }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: assignedTeam.color || '#2c2a26',
-              }} />
-              {assignedTeam.name}
+          {/* Tags de grupos */}
+          {assignedGroups.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+              {assignedGroups.map(g => (
+                <div key={g.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  background: '#f5f3ef', borderRadius: 6, padding: '2px 7px',
+                  fontSize: 10, fontWeight: 600, color: '#6b6760',
+                }}>
+                  {g.photo_url ? (
+                    <img src={g.photo_url} alt={g.name} style={{ width: 10, height: 10, borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.color || '#2c2a26' }} />
+                  )}
+                  {g.name}
+                </div>
+              ))}
             </div>
           )}
 
@@ -514,6 +589,17 @@ function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggle
               {task.title}
             </div>
           )}
+
+          {task.description ? (
+            <div style={{
+              fontSize: 12, color: '#7a7570', lineHeight: 1.5,
+              marginTop: 4, marginBottom: 4,
+              display: '-webkit-box', WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            }}>
+              {task.description}
+            </div>
+          ) : null}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, marginBottom: 8 }}>
             <button
@@ -641,31 +727,37 @@ function TaskCard({ task, teams = [], onUpdate, onDelete, onAddSubtask, onToggle
 // ─── TasksView principal ─────────────────────────────────────────────────────
 export default function TasksView() {
   const [tasks, setTasks] = useState([]);
-  const [teams, setTeams] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState(null);
+  const [activeWorkspace, setActiveWorkspace] = useState(null); // null = Pessoal
 
   useEffect(() => {
     (async () => {
       try {
-        const [tasksRes, teamsRes] = await Promise.all([
+        const [tasksRes, groupsRes] = await Promise.all([
           fetch(`${API}/tasks/`, { headers: authHeaders() }),
-          fetch(`${API}/teams/`, { headers: authHeaders() }),
+          fetch(`${API}/groups/`, { headers: authHeaders() }),  // ← corrigido de /teams/ para /groups/
         ]);
         if (!tasksRes.ok) throw new Error();
         const data = await tasksRes.json();
-        const teamsData = teamsRes.ok ? await teamsRes.json() : [];
+        const groupsData = groupsRes.ok ? await groupsRes.json() : [];
         const positions = loadPositions();
-        setTasks(data.map((t, i) => ({
-          ...t,
-          subtasks: t.subtasks || [],
-          _x: positions[t.id]?.x ?? 30 + (i % 4) * 290,
-          _y: positions[t.id]?.y ?? 30 + Math.floor(i / 4) * 220,
-        })));
-        setTeams(Array.isArray(teamsData) ? teamsData : []);
+        setTasks(data.map((t, i) => {
+          const grps = t.groups || (t.group ? [t.group] : []);
+          return {
+            ...t,
+            subtasks: t.subtasks || [],
+            groups: grps,
+            // se o backend retorna isPessoal usa, senão tasks sem grupos são pessoais
+            isPessoal: t.isPessoal ?? (grps.length === 0),
+            _x: positions[t.id]?.x ?? 30 + (i % 4) * 290,
+            _y: positions[t.id]?.y ?? 30 + Math.floor(i / 4) * 220,
+          };
+        }));
+        setGroups(Array.isArray(groupsData) ? groupsData : []);
       } catch {
         setError('Erro ao carregar tarefas.');
       } finally {
@@ -674,20 +766,26 @@ export default function TasksView() {
     })();
   }, []);
 
+  // Filtra tasks pelo workspace ativo
   const visibleTasks = tasks.filter(t => {
-    if (activeWorkspace === null) return !t.team || t.team === '' || t.team === null;
-    return t.team === activeWorkspace || t.team === String(activeWorkspace) || Number(t.team) === activeWorkspace;
+    const taskGroups = Array.isArray(t.groups) ? t.groups : [];
+    if (activeWorkspace === null) {
+      // Pessoal = tasks marcadas como pessoal OU sem nenhum grupo
+      return t.isPessoal === true || taskGroups.length === 0;
+    }
+    // Grupo selecionado = task que tem esse grupo na lista
+    return taskGroups.includes(activeWorkspace) || taskGroups.includes(String(activeWorkspace));
   });
 
   const createTask = async (form) => {
     setCreating(true);
     try {
-      const teamId = form.team ? Number(form.team) : null;
+      // form.groups = array de ids de grupos selecionados ([] = Pessoal)
       const body = {
         title: form.title,
         description: form.description || '',
         completed: false,
-        ...(teamId ? { team: teamId } : {}),
+        ...(form.groups && form.groups.length > 0 ? { groups: form.groups } : {}),
       };
       const res = await fetch(`${API}/tasks/`, {
         method: 'POST',
@@ -712,7 +810,13 @@ export default function TasksView() {
       const positions = loadPositions();
       const x = positions[t.id]?.x ?? 30 + (tasks.length % 4) * 290;
       const y = positions[t.id]?.y ?? 30 + Math.floor(tasks.length / 4) * 220;
-      setTasks(prev => [...prev, { ...t, subtasks: t.subtasks || [], _x: x, _y: y }]);
+      setTasks(prev => [...prev, {
+        ...t,
+        subtasks: t.subtasks || [],
+        groups: t.groups || (form.groups || []),
+        isPessoal: form.isPessoal ?? true,
+        _x: x, _y: y,
+      }]);
     } catch {
       setError('Erro ao criar tarefa.');
     } finally {
@@ -808,7 +912,7 @@ export default function TasksView() {
         )}
 
         <WorkspaceDropdown
-          teams={teams}
+          groups={groups}
           activeWorkspace={activeWorkspace}
           onChange={setActiveWorkspace}
         />
@@ -857,7 +961,7 @@ export default function TasksView() {
           <TaskCard
             key={task.id}
             task={task}
-            teams={teams}
+            groups={groups}
             onUpdate={updateTask}
             onDelete={deleteTask}
             onAddSubtask={addSubtask}
@@ -871,8 +975,8 @@ export default function TasksView() {
         <CreateTaskModal
           onClose={() => setShowModal(false)}
           onCreate={createTask}
-          teams={teams}
-          defaultTeam={activeWorkspace}
+          groups={groups}
+          defaultGroup={activeWorkspace}
         />
       )}
     </div>
