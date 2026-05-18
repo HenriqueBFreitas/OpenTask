@@ -109,27 +109,27 @@ export default function LoginPage() {
   const btnRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      if (!(window as any).google || !btnRef.current) return;
-      (window as any).google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleResponse,
-      });
-      (window as any).google.accounts.id.renderButton(btnRef.current, {
-        theme: 'outline',
-        size: 'large',
-        width: 384,
-        text: 'continue_with',
-        locale: 'pt-BR',
-      });
-    document.body.appendChild(script);
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.async = true;
+  script.defer = true;
+  script.onload = () => {
+    if (!(window as any).google || !btnRef.current) return;
+    (window as any).google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleResponse,
+    });
+    (window as any).google.accounts.id.renderButton(btnRef.current, {
+      theme: 'outline',
+      size: 'large',
+      width: 384,
+      text: 'continue with',
+      locale: 'pt-BR',
+    });
   };
-  return () => document.body.removeChild(script);
-  }, []);
+  document.body.appendChild(script);
+  return () => { document.body.removeChild(script); };
+}, []);
 
   const handleGoogleResponse = async (response: any) => {
     setLoading(true);
