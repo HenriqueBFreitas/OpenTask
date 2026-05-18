@@ -126,9 +126,9 @@ export default function LoginPage() {
         text: 'continue_with',
         locale: 'pt-BR',
       });
-    };
     document.body.appendChild(script);
-    return () => document.body.removeChild(script);
+  };
+  return () => document.body.removeChild(script);
   }, []);
 
   const handleGoogleResponse = async (response: any) => {
