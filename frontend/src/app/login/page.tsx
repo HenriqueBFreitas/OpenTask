@@ -2,8 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim();
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').trim();
 
 function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
   const [username, setUsername] = useState('');
