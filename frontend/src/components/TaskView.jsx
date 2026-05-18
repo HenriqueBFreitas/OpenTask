@@ -850,7 +850,7 @@ export default function TasksView() {
 
   const addSubtask = async (taskId, title) => {
     try {
-      const res = await fetch(`${API}/subtasks/`, {
+      const res = await fetch(`${API}/tasks/subtasks/`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ task: taskId, title, completed: false }),
@@ -867,7 +867,7 @@ export default function TasksView() {
 
   const toggleSubtask = async (sub) => {
     try {
-      const res = await fetch(`${API}/subtasks/${sub.id}/`, {
+      const res = await fetch(`${API}/tasks/subtasks/${sub.id}/`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ completed: !sub.completed }),
