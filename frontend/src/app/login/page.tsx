@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
   const [username, setUsername] = useState('');
@@ -14,7 +15,7 @@ function UsernameModal({ onSave }: { onSave: (u: string) => void }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('http://localhost:8000/api/users/me/username/', {
+      const res = await fetch(`${API}/users/me/username/`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -135,7 +136,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('http://localhost:8000/api/users/login/google/', {
+      const res = await fetch(`${API}/users/login/google/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: response.credential }),
@@ -148,7 +149,7 @@ export default function LoginPage() {
       document.cookie = `access=${data.access}; path=/; max-age=3600; SameSite=Lax`;
       document.cookie = `refresh=${data.refresh}; path=/; max-age=604800; SameSite=Lax`;
 
-      const meRes = await fetch('http://localhost:8000/api/users/me/', {
+      const meRes = await fetch(`${API}/users/me/`, {
         headers: { Authorization: `Bearer ${data.access}` },
       });
       const me = await meRes.json();
@@ -177,7 +178,7 @@ export default function LoginPage() {
     try {
       if (isLogin) {
         if (!email.trim() || !password.trim()) return;
-        const res = await fetch('http://localhost:8000/api/users/login/', {
+        const res = await fetch(`${API}/users/login/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password }),
@@ -192,7 +193,7 @@ export default function LoginPage() {
         if (!email.trim()) { setError('Email é obrigatório.'); return; }
         if (!username.trim()) { setError('Usuário é obrigatório.'); return; }
         if (password !== passwordConfirm) { setError('As senhas não coincidem.'); return; }
-        const res = await fetch('http://localhost:8000/api/users/register/', {
+        const res = await fetch(`${API}/users/register/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
