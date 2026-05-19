@@ -865,6 +865,7 @@ export default function TasksView() {
     }
   };
 
+
   const toggleSubtask = async (sub) => {
     try {
       const res = await fetch(`${API}/tasks/subtasks/${sub.id}/`, {
@@ -953,7 +954,7 @@ export default function TasksView() {
               letterSpacing: '0.2px',
             }}
           >
-            + Criar tarefa
+            + Criar tarefa 
           </button>
         </div>
       ) : (
