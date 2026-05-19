@@ -70,21 +70,22 @@ class FileDetailView(APIView):
     def delete(self, request, pk):
         file = self.get_object(pk, request.user)
         if not file:
-            return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'detail': 'Arquivo não encontrado.'}, status=404)
+
         if file.image_url:
-            # Extrai o public_id do Cloudinary da URL e deleta
             try:
-                # URL pattern: .../files/images/<public_id>.<ext>
                 parts = file.image_url.split('/')
-                public_id_with_ext = parts[-1]
-                public_id = 'files/images/' + public_id_with_ext.rsplit('.', 1)[0]
-                cloudinary.uploader.destroy(public_id)
+                folder_index = next(i for i, p in enumerate(parts) if p in ('files',))
+                public_id_with_ext = '/'.join(parts[folder_index:])
+                public_id = public_id_with_ext.rsplit('.', 1)[0]
+                ext = file.original_name.split('.')[-1].lower()
+                resource_type = 'image' if ext in {'jpg', 'jpeg', 'png', 'gif', 'webp'} else 'raw'
+                cloudinary.uploader.destroy(public_id, resource_type=resource_type)
             except Exception:
-                pass  # Falha silenciosa — registro será deletado mesmo assim
-        elif file.file:
-            file.file.delete(save=False)
+                pass
+
         file.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=204)
 
 
 class TaskFileListCreateView(APIView):

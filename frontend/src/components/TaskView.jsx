@@ -75,7 +75,7 @@ function DeleteModal({ taskTitle, onConfirm, onCancel }) {
   );
 }
 
-// ─── Workspace Dropdown (seletor de visualização — uma por vez) ──────────────
+// ─── Workspace Dropdown ──────────────────────────────────────────────────────
 function WorkspaceDropdown({ groups, activeWorkspace, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -185,9 +185,8 @@ function WorkspaceDropdown({ groups, activeWorkspace, onChange }) {
   );
 }
 
-// ─── Modal de criação — workspace multi-select ───────────────────────────────
+// ─── Modal de criação ────────────────────────────────────────────────────────
 function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }) {
-  // isPessoal e grupos são independentes — uma task pode ser de ambos ao mesmo tempo
   const [isPessoal, setIsPessoal] = useState(defaultGroup === null);
   const [selectedGroups, setSelectedGroups] = useState(
     defaultGroup !== null ? [defaultGroup] : []
@@ -254,7 +253,6 @@ function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }
           >×</button>
         </div>
 
-        {/* Imagem */}
         <label style={{ cursor: 'pointer' }}>
           <div style={{
             border: '2px dashed #e2ddd6', borderRadius: 12, overflow: 'hidden',
@@ -273,7 +271,6 @@ function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }
           <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImage} />
         </label>
 
-        {/* Título */}
         <input
           placeholder="Título da tarefa *"
           value={form.title}
@@ -289,7 +286,6 @@ function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
         />
 
-        {/* Descrição */}
         <textarea
           placeholder="Descrição (opcional)..."
           value={form.description}
@@ -305,7 +301,6 @@ function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }
           onBlur={e => e.target.style.borderColor = '#e2ddd6'}
         />
 
-        {/* Workspace multi-select */}
         <div>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#6b6760', marginBottom: 6 }}>
             Workspace
@@ -322,7 +317,6 @@ function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }
             border: '1.5px solid #e2ddd6', borderRadius: 10,
             overflow: 'hidden', background: '#faf9f7',
           }}>
-            {/* Pessoal */}
             <WorkspaceOption
               label="Pessoal"
               color="#a09d97"
@@ -331,9 +325,7 @@ function CreateTaskModal({ onClose, onCreate, groups = [], defaultGroup = null }
               onClick={() => toggleGroup(null)}
               borderTop={false}
             />
-
-            {/* Grupos */}
-            {groups.map((g, i) => {
+            {groups.map((g) => {
               const isSelected = selectedGroups.includes(g.id);
               return (
                 <WorkspaceOption
@@ -400,7 +392,6 @@ function WorkspaceOption({ label, color, selected, isCheckbox, onClick, borderTo
       onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f5f3ef'; }}
       onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent'; }}
     >
-      {/* Avatar do grupo ou bolinha */}
       {photoUrl ? (
         <img
           src={photoUrl}
@@ -413,10 +404,7 @@ function WorkspaceOption({ label, color, selected, isCheckbox, onClick, borderTo
           background: color,
         }} />
       )}
-
       <span style={{ flex: 1 }}>{label}</span>
-
-      {/* Checkbox para grupos, checkmark simples para Pessoal */}
       {isCheckbox ? (
         <span style={{
           width: 16, height: 16, borderRadius: 4, flexShrink: 0,
@@ -459,16 +447,26 @@ function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggl
       x: e.clientX - pos.current.x,
       y: e.clientY - pos.current.y,
     };
+
     const onMove = (ev) => {
+      const card = cardRef.current;
+      const cardW = card ? card.offsetWidth : 270;
+      const cardH = card ? card.offsetHeight : 300;
+      const maxX = window.innerWidth - cardW - 8;
+      const maxY = window.innerHeight - cardH - 8;
+
+      // ✅ Limita o card dentro da tela
       pos.current = {
-        x: ev.clientX - dragOffset.current.x,
-        y: ev.clientY - dragOffset.current.y,
+        x: Math.max(8, Math.min(maxX, ev.clientX - dragOffset.current.x)),
+        y: Math.max(8, Math.min(maxY, ev.clientY - dragOffset.current.y)),
       };
+
       if (cardRef.current) {
         cardRef.current.style.left = pos.current.x + 'px';
         cardRef.current.style.top = pos.current.y + 'px';
       }
     };
+
     const onUp = () => {
       setDragging(false);
       onPositionChange(task.id, pos.current.x, pos.current.y);
@@ -494,7 +492,6 @@ function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggl
     setAddingSub(false);
   };
 
-  // Task pode pertencer a vários grupos
   const taskGroupIds = Array.isArray(task.groups)
     ? task.groups
     : (task.group ? [task.group] : []);
@@ -543,7 +540,6 @@ function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggl
         )}
 
         <div style={{ padding: '14px 14px 12px' }}>
-          {/* Tags de grupos */}
           {assignedGroups.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
               {assignedGroups.map(g => (
@@ -560,6 +556,21 @@ function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggl
                   {g.name}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Badge de salvando */}
+          {task._pending && (
+            <div style={{
+              fontSize: 10, color: '#a09d97', fontWeight: 500,
+              marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: '#a09d97', display: 'inline-block',
+                animation: 'pulse 1s infinite',
+              }} />
+              Salvando...
             </div>
           )}
 
@@ -732,14 +743,14 @@ export default function TasksView() {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [activeWorkspace, setActiveWorkspace] = useState(null); // null = Pessoal
+  const [activeWorkspace, setActiveWorkspace] = useState(null);
 
   useEffect(() => {
     (async () => {
       try {
         const [tasksRes, groupsRes] = await Promise.all([
           fetch(`${API}/tasks/`, { headers: authHeaders() }),
-          fetch(`${API}/groups/`, { headers: authHeaders() }),  // ← corrigido de /teams/ para /groups/
+          fetch(`${API}/groups/`, { headers: authHeaders() }),
         ]);
         if (!tasksRes.ok) throw new Error();
         const data = await tasksRes.json();
@@ -751,7 +762,6 @@ export default function TasksView() {
             ...t,
             subtasks: t.subtasks || [],
             groups: grps,
-            // se o backend retorna isPessoal usa, senão tasks sem grupos são pessoais
             isPessoal: t.isPessoal ?? (grps.length === 0),
             _x: positions[t.id]?.x ?? 30 + (i % 4) * 290,
             _y: positions[t.id]?.y ?? 30 + Math.floor(i / 4) * 220,
@@ -766,26 +776,45 @@ export default function TasksView() {
     })();
   }, []);
 
-  // Filtra tasks pelo workspace ativo
   const visibleTasks = tasks.filter(t => {
     const taskGroups = Array.isArray(t.groups) ? t.groups : [];
     if (activeWorkspace === null) {
-      // Pessoal = tasks marcadas como pessoal OU sem nenhum grupo
       return t.isPessoal === true || taskGroups.length === 0;
     }
-    // Grupo selecionado = task que tem esse grupo na lista
     return taskGroups.includes(activeWorkspace) || taskGroups.includes(String(activeWorkspace));
   });
 
+  // ✅ Optimistic update — card aparece imediatamente, salva no banco em background
   const createTask = async (form) => {
     setCreating(true);
+
+    const tempId = `temp_${Date.now()}`;
+    const positions = loadPositions();
+    const x = positions[tempId]?.x ?? 30 + (tasks.length % 4) * 290;
+    const y = positions[tempId]?.y ?? 30 + Math.floor(tasks.length / 4) * 220;
+
+    const optimistic = {
+      id: tempId,
+      title: form.title,
+      description: form.description || '',
+      completed: false,
+      subtasks: [],
+      groups: form.groups || [],
+      isPessoal: form.isPessoal ?? true,
+      images_data: [],
+      _x: x, _y: y,
+      _pending: true,
+    };
+
+    // Adiciona na tela imediatamente
+    setTasks(prev => [...prev, optimistic]);
+
     try {
-      // form.groups = array de ids de grupos selecionados ([] = Pessoal)
       const body = {
         title: form.title,
         description: form.description || '',
         completed: false,
-        ...(form.groups && form.groups.length > 0 ? { groups: form.groups } : {}),
+        ...(form.groups?.length > 0 ? { groups: form.groups } : {}),
       };
       const res = await fetch(`${API}/tasks/`, {
         method: 'POST',
@@ -807,17 +836,22 @@ export default function TasksView() {
         if (r2.ok) Object.assign(t, await r2.json());
       }
 
-      const positions = loadPositions();
-      const x = positions[t.id]?.x ?? 30 + (tasks.length % 4) * 290;
-      const y = positions[t.id]?.y ?? 30 + Math.floor(tasks.length / 4) * 220;
-      setTasks(prev => [...prev, {
-        ...t,
-        subtasks: t.subtasks || [],
-        groups: t.groups || (form.groups || []),
-        isPessoal: form.isPessoal ?? true,
-        _x: x, _y: y,
-      }]);
+      // Substitui o card temporário pelo real
+      setTasks(prev => prev.map(tk =>
+        tk.id === tempId
+          ? {
+              ...t,
+              subtasks: t.subtasks || [],
+              groups: t.groups || form.groups || [],
+              isPessoal: form.isPessoal ?? true,
+              _x: x, _y: y,
+              _pending: false,
+            }
+          : tk
+      ));
     } catch {
+      // Remove o card temporário em caso de erro
+      setTasks(prev => prev.filter(tk => tk.id !== tempId));
       setError('Erro ao criar tarefa.');
     } finally {
       setCreating(false);
@@ -864,7 +898,6 @@ export default function TasksView() {
       setError('Erro ao criar subtarefa.');
     }
   };
-
 
   const toggleSubtask = async (sub) => {
     try {
@@ -954,7 +987,7 @@ export default function TasksView() {
               letterSpacing: '0.2px',
             }}
           >
-            + Criar tarefa 
+            + Criar tarefa
           </button>
         </div>
       ) : (
