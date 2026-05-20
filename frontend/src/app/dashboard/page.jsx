@@ -5,6 +5,8 @@ import TasksView from '@/components/TaskView';
 import DocsView from '@/components/DocsView';
 import TeamsView from '@/components/TeamsView';
 
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
 const ExcalidrawWrapper = dynamic(
   () => import('./ExcalidrawWrapper'),
   {
@@ -47,7 +49,7 @@ export default function Dashboard() {
   useEffect(() => {
     const token = localStorage.getItem('access_token');
     if (!token) return;
-    fetch('http://localhost:8000/api/users/me/', {
+    fetch(`${API}/users/me/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
