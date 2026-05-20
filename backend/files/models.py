@@ -73,7 +73,7 @@ class File(models.Model):
 
     def save(self, *args, **kwargs):
         if self.file and not self.original_name:
-            filename = f'{uuid.uuid4()}.{ext}'
+            self.original_name = os.path.basename(self.file.name)
         if self.file and not self.size:
             self.size = self.file.size
         super().save(*args, **kwargs)
