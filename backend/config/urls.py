@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/core/', include('core.urls')),
     path('api/users/', include('users.urls')),
     path('api/tasks/', include('tasks.urls')),
+    path('api/subtasks/', include('tasks.subtask_urls')),
     path('api/files/', include('files.urls')),
     path('api/groups/', include('groups.urls')),
     path('api/friends/', include('friends.urls')),
