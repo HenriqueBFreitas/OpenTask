@@ -426,7 +426,7 @@ function WorkspaceOption({ label, color, selected, isCheckbox, onClick, borderTo
 }
 
 // ─── Card de tarefa ──────────────────────────────────────────────────────────
-function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggleSubtask, onPositionChange }) {
+function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggleSubtask, onPositionChange, zoom = 1 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task.title);
@@ -442,23 +442,21 @@ function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggl
   const onMouseDown = (e) => {
     if (e.target.closest('button, input, textarea, select, .no-drag')) return;
     e.preventDefault();
+    e.stopPropagation();
     setDragging(true);
     dragOffset.current = {
-      x: e.clientX - pos.current.x,
-      y: e.clientY - pos.current.y,
+      x: e.clientX / zoom - pos.current.x,
+      y: e.clientY / zoom - pos.current.y,
     };
 
     const onMove = (ev) => {
       const card = cardRef.current;
       const cardW = card ? card.offsetWidth : 270;
       const cardH = card ? card.offsetHeight : 300;
-      const maxX = window.innerWidth - cardW - 8;
-      const maxY = window.innerHeight - cardH - 8;
 
-      // ✅ Limita o card dentro da tela
       pos.current = {
-        x: Math.max(8, Math.min(maxX, ev.clientX - dragOffset.current.x)),
-        y: Math.max(8, Math.min(maxY, ev.clientY - dragOffset.current.y)),
+        x: ev.clientX / zoom - dragOffset.current.x,
+        y: ev.clientY / zoom - dragOffset.current.y,
       };
 
       if (cardRef.current) {
@@ -526,7 +524,9 @@ function TaskCard({ task, groups = [], onUpdate, onDelete, onAddSubtask, onToggl
             : '0 2px 12px rgba(0,0,0,0.08)',
           cursor: dragging ? 'grabbing' : 'grab',
           userSelect: 'none',
-          transition: dragging ? 'none' : 'box-shadow 0.2s',
+          // ✅ opacidade reduzida enquanto está salvando no banco
+          opacity: task._pending ? 0.6 : 1,
+          transition: dragging ? 'none' : 'box-shadow 0.2s, opacity 0.3s',
           zIndex: dragging ? 100 : 1,
           overflow: 'hidden',
         }}
@@ -756,13 +756,14 @@ export default function TasksView() {
         const data = await tasksRes.json();
         const groupsData = groupsRes.ok ? await groupsRes.json() : [];
         const positions = loadPositions();
+
         setTasks(data.map((t, i) => {
           const grps = t.groups || (t.group ? [t.group] : []);
           return {
             ...t,
             subtasks: t.subtasks || [],
             groups: grps,
-            isPessoal: t.isPessoal ?? (grps.length === 0),
+            isPessoal: t.is_pessoal ?? (grps.length === 0),
             _x: positions[t.id]?.x ?? 30 + (i % 4) * 290,
             _y: positions[t.id]?.y ?? 30 + Math.floor(i / 4) * 220,
           };
@@ -779,12 +780,11 @@ export default function TasksView() {
   const visibleTasks = tasks.filter(t => {
     const taskGroups = Array.isArray(t.groups) ? t.groups : [];
     if (activeWorkspace === null) {
-      return t.isPessoal === true || taskGroups.length === 0;
+      return t.isPessoal === true || t.is_personal === true || taskGroups.length === 0;
     }
     return taskGroups.includes(activeWorkspace) || taskGroups.includes(String(activeWorkspace));
   });
 
-  // ✅ Optimistic update — card aparece imediatamente, salva no banco em background
   const createTask = async (form) => {
     setCreating(true);
 
@@ -806,7 +806,6 @@ export default function TasksView() {
       _pending: true,
     };
 
-    // Adiciona na tela imediatamente
     setTasks(prev => [...prev, optimistic]);
 
     try {
@@ -814,6 +813,7 @@ export default function TasksView() {
         title: form.title,
         description: form.description || '',
         completed: false,
+        is_personal: form.isPessoal ?? true,
         ...(form.groups?.length > 0 ? { groups: form.groups } : {}),
       };
       const res = await fetch(`${API}/tasks/`, {
@@ -836,14 +836,13 @@ export default function TasksView() {
         if (r2.ok) Object.assign(t, await r2.json());
       }
 
-      // Substitui o card temporário pelo real
       setTasks(prev => prev.map(tk =>
         tk.id === tempId
           ? {
               ...t,
               subtasks: t.subtasks || [],
               groups: t.groups || form.groups || [],
-              isPessoal: form.isPessoal ?? true,
+              isPessoal: form.is_pessoal ?? true,
               _x: x, _y: y,
               _pending: false,
             }
@@ -859,6 +858,8 @@ export default function TasksView() {
   };
 
   const updateTask = async (id, data) => {
+    // ✅ Atualiza na tela imediatamente
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
     try {
       const res = await fetch(`${API}/tasks/${id}/`, {
         method: 'PATCH',
@@ -869,6 +870,12 @@ export default function TasksView() {
       const updated = await res.json();
       setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updated } : t));
     } catch {
+      // Reverte em caso de erro
+      setTasks(prev => prev.map(t =>
+        t.id === id
+          ? { ...t, ...Object.fromEntries(Object.keys(data).map(k => [k, t[k]])) }
+          : t
+      ));
       setError('Erro ao atualizar tarefa.');
     }
   };
@@ -900,6 +907,11 @@ export default function TasksView() {
   };
 
   const toggleSubtask = async (sub) => {
+    // ✅ Atualiza na tela imediatamente
+    setTasks(prev => prev.map(t => ({
+      ...t,
+      subtasks: t.subtasks?.map(s => s.id === sub.id ? { ...s, completed: !sub.completed } : s),
+    })));
     try {
       const res = await fetch(`${API}/tasks/subtasks/${sub.id}/`, {
         method: 'PATCH',
@@ -913,6 +925,11 @@ export default function TasksView() {
         subtasks: t.subtasks?.map(s => s.id === sub.id ? updated : s),
       })));
     } catch {
+      // Reverte em caso de erro
+      setTasks(prev => prev.map(t => ({
+        ...t,
+        subtasks: t.subtasks?.map(s => s.id === sub.id ? sub : s),
+      })));
       setError('Erro ao atualizar subtarefa.');
     }
   };
@@ -924,6 +941,51 @@ export default function TasksView() {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, _x: x, _y: y } : t));
   }, []);
 
+  // ─── Canvas infinito ─────────────────────────────────────────────────────────
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0 });
+  const panOrigin = useRef({ x: 0, y: 0 });
+  const canvasRef = useRef(null);
+
+  const MIN_ZOOM = 0.3;
+  const MAX_ZOOM = 2;
+
+  const onCanvasMouseDown = (e) => {
+    // Só inicia pan se clicar no fundo (não em card)
+    if (e.target !== canvasRef.current && !e.target.classList.contains('canvas-bg')) return;
+    isPanning.current = true;
+    panStart.current = { x: e.clientX, y: e.clientY };
+    panOrigin.current = { ...pan };
+    e.currentTarget.style.cursor = 'grabbing';
+  };
+
+  const onCanvasMouseMove = (e) => {
+    if (!isPanning.current) return;
+    const dx = e.clientX - panStart.current.x;
+    const dy = e.clientY - panStart.current.y;
+    setPan({ x: panOrigin.current.x + dx, y: panOrigin.current.y + dy });
+  };
+
+  const onCanvasMouseUp = (e) => {
+    isPanning.current = false;
+    if (canvasRef.current) canvasRef.current.style.cursor = 'default';
+  };
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!canvasRef.current?.contains(e.target)) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      setZoom(z => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * delta)));
+    };
+    document.addEventListener('wheel', handler, { passive: false });
+    return () => document.removeEventListener('wheel', handler);
+  }, []);
+
+  const resetView = () => { setPan({ x: 0, y: 0 }); setZoom(1); };
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#a09d97', fontSize: 14 }}>
       Carregando tarefas...
@@ -931,7 +993,27 @@ export default function TasksView() {
   );
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#faf9f7' }}>
+    <div
+      ref={canvasRef}
+      style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', background: '#faf9f7', cursor: 'default' }}
+      onMouseDown={onCanvasMouseDown}
+      onMouseMove={onCanvasMouseMove}
+      onMouseUp={onCanvasMouseUp}
+      onMouseLeave={onCanvasMouseUp}
+    >
+      {/* Grade de fundo (visual de canvas infinito) */}
+      <div
+        className="canvas-bg"
+        style={{
+          position: 'absolute', inset: 0, zIndex: 0,
+          backgroundImage: `radial-gradient(circle, #d0cdc8 1px, transparent 1px)`,
+          backgroundSize: `${28 * zoom}px ${28 * zoom}px`,
+          backgroundPosition: `${pan.x % (28 * zoom)}px ${pan.y % (28 * zoom)}px`,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* HUD — toolbar fixo no topo direito */}
       <div style={{
         position: 'absolute', top: 16, right: 20, zIndex: 50,
         display: 'flex', alignItems: 'center', gap: 10,
@@ -964,46 +1046,81 @@ export default function TasksView() {
         </button>
       </div>
 
-      {visibleTasks.length === 0 ? (
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          height: '100%', gap: 12, userSelect: 'none',
-        }}>
-          <div style={{ fontSize: 52, opacity: 0.15, fontWeight: 900, color: '#2c2a26' }}>✓</div>
-          <span style={{ fontSize: 17, fontWeight: 700, color: '#2c2a26' }}>
-            Nenhuma tarefa neste workspace
-          </span>
-          <span style={{ fontSize: 13, color: '#a09d97' }}>
-            Crie a primeira tarefa para este espaço
-          </span>
-          <button
-            onClick={() => setShowModal(true)}
-            style={{
-              marginTop: 8, background: '#2c2a26', color: '#fff',
-              border: 'none', borderRadius: 12, padding: '12px 28px',
-              fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(44,42,38,0.2)',
-              letterSpacing: '0.2px',
-            }}
-          >
-            + Criar tarefa
-          </button>
-        </div>
-      ) : (
-        visibleTasks.map(task => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            groups={groups}
-            onUpdate={updateTask}
-            onDelete={deleteTask}
-            onAddSubtask={addSubtask}
-            onToggleSubtask={toggleSubtask}
-            onPositionChange={handlePositionChange}
-          />
-        ))
-      )}
+      {/* Controles de zoom — canto inferior direito */}
+      <div style={{
+        position: 'absolute', bottom: 20, right: 20, zIndex: 50,
+        display: 'flex', flexDirection: 'column', gap: 6,
+      }}>
+        <button
+          onClick={() => setZoom(z => Math.min(MAX_ZOOM, z * 1.15))}
+          style={zoomBtnStyle}
+          title="Zoom in"
+        >+</button>
+        <button
+          onClick={resetView}
+          style={{ ...zoomBtnStyle, fontSize: 10, fontWeight: 700, color: '#6b6760' }}
+          title="Resetar vista"
+        >{Math.round(zoom * 100)}%</button>
+        <button
+          onClick={() => setZoom(z => Math.max(MIN_ZOOM, z * 0.85))}
+          style={zoomBtnStyle}
+          title="Zoom out"
+        >−</button>
+      </div>
+
+      {/* Canvas transformável */}
+      <div
+        style={{
+          position: 'absolute', top: 0, left: 0,
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: '0 0',
+          willChange: 'transform',
+        }}
+      >
+        {visibleTasks.length === 0 ? (
+          <div style={{
+            position: 'fixed', inset: 0,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 12, userSelect: 'none', pointerEvents: 'none',
+          }}>
+            <div style={{ fontSize: 52, opacity: 0.15, fontWeight: 900, color: '#2c2a26' }}>✓</div>
+            <span style={{ fontSize: 17, fontWeight: 700, color: '#2c2a26' }}>
+              Nenhuma tarefa neste workspace
+            </span>
+            <span style={{ fontSize: 13, color: '#a09d97' }}>
+              Crie a primeira tarefa para este espaço
+            </span>
+            <button
+              onClick={() => setShowModal(true)}
+              style={{
+                pointerEvents: 'all',
+                marginTop: 8, background: '#2c2a26', color: '#fff',
+                border: 'none', borderRadius: 12, padding: '12px 28px',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(44,42,38,0.2)',
+                letterSpacing: '0.2px',
+              }}
+            >
+              + Criar tarefa
+            </button>
+          </div>
+        ) : (
+          visibleTasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              groups={groups}
+              onUpdate={updateTask}
+              onDelete={deleteTask}
+              onAddSubtask={addSubtask}
+              onToggleSubtask={toggleSubtask}
+              onPositionChange={handlePositionChange}
+              zoom={zoom}
+            />
+          ))
+        )}
+      </div>
 
       {showModal && (
         <CreateTaskModal
@@ -1016,3 +1133,12 @@ export default function TasksView() {
     </div>
   );
 }
+
+const zoomBtnStyle = {
+  width: 32, height: 32, borderRadius: 8,
+  border: '1.5px solid #e2ddd6', background: '#fff',
+  fontSize: 16, fontWeight: 700, cursor: 'pointer',
+  color: '#2c2a26', display: 'flex', alignItems: 'center',
+  justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+  fontFamily: 'inherit',
+};
