@@ -1298,7 +1298,7 @@ export default function TasksView() {
   const addSubtask = async (taskId, title) => {
     try {
       const res = await fetch(`${API}/subtasks/`, {
-        method: 'PATCH',
+        method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ task: taskId, title, completed: false }),
       });
