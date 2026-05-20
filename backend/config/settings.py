@@ -173,3 +173,5 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Tamanho máximo de upload: 100 MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600
 FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
