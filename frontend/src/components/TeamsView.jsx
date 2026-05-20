@@ -525,7 +525,7 @@ function TeamCard({ team, onClick }) {
     <div onClick={onClick} style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', cursor: 'pointer', overflow: 'hidden', transition: 'box-shadow 0.2s, transform 0.15s', border: '1px solid rgba(0,0,0,0.04)' }}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'none'; }}>
-      <div style={{ height: 90, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ height: 90, position: 'relative', overflow: 'visible' }}>
         {coverSrc ? <img src={coverSrc} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : <div style={{ width: '100%', height: '100%', background: '#ece9e4' }} />}
         <div style={{ position: 'absolute', bottom: -18, left: 16, width: 48, height: 48, borderRadius: 12, background: avatarSrc ? 'none' : color.bg, border: '3px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
           {avatarSrc ? <img src={avatarSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: color.dot, fontWeight: 800, fontSize: 18 }}>{team.name.charAt(0)}</span>}
