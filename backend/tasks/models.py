@@ -1,6 +1,6 @@
 from django.db import models
 from django.conf import settings
-
+from groups.models import Group  # ajuste o import conforme seu app
 
 class Task(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -8,6 +8,8 @@ class Task(models.Model):
     description = models.TextField(blank=True, default='')
     completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    groups = models.ManyToManyField(Group, blank=True, related_name='personal_tasks')
+    is_personal = models.BooleanField(default=True)
 
     def __str__(self):
         return self.title

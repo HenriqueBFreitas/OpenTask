@@ -20,7 +20,12 @@ class TaskViewSet(ModelViewSet):
         return Task.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        task = serializer.save(user=self.request.user)
+        # ManyToMany precisa ser setado após o save
+        groups = self.request.data.get('groups', [])
+        if groups:
+            task.groups.set(groups)
+        task.save()
 
     @action(
         detail=True,

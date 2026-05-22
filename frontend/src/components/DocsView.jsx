@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 
-const API = 'http://localhost:8000/api';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 const getToken = () => localStorage.getItem('access_token');
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
