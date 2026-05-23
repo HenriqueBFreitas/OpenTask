@@ -116,8 +116,8 @@ function CreateTeamModal({ onClose, onCreate }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(TEAM_COLORS[1]);
-  const [coverImage, setCoverImage] = useState(null);   // { dataURL, file }
-  const [avatarImage, setAvatarImage] = useState(null); // { dataURL, file }
+  const [coverImage, setCoverImage] = useState(null);
+  const [avatarImage, setAvatarImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const readFile = useFileAsDataURL();
@@ -137,7 +137,6 @@ function CreateTeamModal({ onClose, onCreate }) {
     if (!name.trim()) return;
     setLoading(true); setError('');
     try {
-      // 1. Cria o grupo
       const res = await fetch(`${API}/groups/`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -146,7 +145,6 @@ function CreateTeamModal({ onClose, onCreate }) {
       if (!res.ok) throw new Error('Erro ao criar grupo');
       const group = await res.json();
 
-      // 2. Upload de avatar
       if (avatarImage) {
         const fd = new FormData();
         fd.append('photo', avatarImage.file);
@@ -155,7 +153,6 @@ function CreateTeamModal({ onClose, onCreate }) {
         });
       }
 
-      // 3. Upload de banner
       if (coverImage) {
         const fd = new FormData();
         fd.append('banner', coverImage.file);
@@ -235,9 +232,12 @@ function CreateTeamModal({ onClose, onCreate }) {
 }
 
 // ─── Modal convidar membro ────────────────────────────────────────────────
+// FIX 1: Rota correta é /groups/{groupId}/users/search/?q= (não /users/search/)
+// FIX 2: Após convite bem-sucedido, chama onInvited para atualizar lista
 function InviteMemberModal({ group, onClose, onInvited }) {
   const [query, setQuery] = useState('');
   const [found, setFound] = useState(null);
+  const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -245,29 +245,43 @@ function InviteMemberModal({ group, onClose, onInvited }) {
 
   const search = async () => {
     if (!query.trim()) return;
-    setSearching(true); setFound(null); setError('');
+    setSearching(true); setFound(null); setResults([]); setError(''); setSuccess('');
     try {
-      const res = await fetch(`${API}/users/search/?q=${encodeURIComponent(query.trim())}`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Usuário não encontrado');
+      // FIX 1: Rota correta — busca dentro do grupo (exclui membros já existentes)
+      const res = await fetch(
+        `${API}/groups/${group.id}/users/search/?q=${encodeURIComponent(query.trim())}`,
+        { headers: getAuthHeaders() }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao buscar usuários');
+      }
       const data = await res.json();
-      const user = Array.isArray(data) ? data[0] : data;
-      if (!user) throw new Error('Nenhum usuário encontrado');
-      setFound(user);
+      const list = Array.isArray(data) ? data : [];
+      if (list.length === 0) throw new Error('Nenhum usuário encontrado');
+      setResults(list);
+      // Se vier apenas 1 resultado, seleciona direto
+      if (list.length === 1) setFound(list[0]);
     } catch (err) { setError(err.message); }
     finally { setSearching(false); }
   };
 
-  const invite = async () => {
-    if (!found) return;
+  const invite = async (user) => {
+    const target = user || found;
+    if (!target) return;
     setLoading(true); setError('');
     try {
       const res = await fetch(`${API}/groups/${group.id}/invites/`, {
-        method: 'POST', headers: getAuthHeaders(),
-        body: JSON.stringify({ invited_user: found.id }),
+        method: 'POST',
+        headers: getAuthHeaders(),
+        // A API aceita invited_user (id) ou username — enviamos os dois para garantir
+        body: JSON.stringify({ invited_user: target.id, username: target.username }),
       });
-      if (!res.ok) throw new Error('Erro ao enviar convite');
-      setSuccess(`Convite enviado para ${found.username || found.email}!`);
-      setFound(null); setQuery('');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erro ao enviar convite');
+      setSuccess(`Convite enviado para ${target.username || target.email}!`);
+      setFound(null); setResults([]); setQuery('');
+      // FIX 2: Notifica o pai para recarregar membros/convites
       onInvited && onInvited();
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
@@ -276,29 +290,75 @@ function InviteMemberModal({ group, onClose, onInvited }) {
   return (
     <Modal title="Convidar pessoa" onClose={onClose}>
       <div style={{ display: 'flex', gap: 8 }}>
-        <input placeholder="Username ou e-mail" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} autoFocus
+        <input
+          placeholder="Digite o username"
+          value={query}
+          onChange={e => { setQuery(e.target.value); setError(''); setSuccess(''); }}
+          onKeyDown={e => e.key === 'Enter' && search()}
+          autoFocus
           style={{ flex: 1, border: '1.5px solid #e2ddd6', borderRadius: 10, padding: '10px 13px', fontSize: 14, fontFamily: 'inherit', outline: 'none', color: '#1a1814', background: '#faf9f7' }}
-          onFocus={e => e.target.style.borderColor = '#2c2a26'} onBlur={e => e.target.style.borderColor = '#e2ddd6'} />
+          onFocus={e => e.target.style.borderColor = '#2c2a26'}
+          onBlur={e => e.target.style.borderColor = '#e2ddd6'}
+        />
         <PrimaryBtn onClick={search} loading={searching} small>Buscar</PrimaryBtn>
       </div>
 
-      {found && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#faf9f7', borderRadius: 12, padding: '12px 14px', border: '1.5px solid #e2ddd6' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: '#e8e4de', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {found.avatar_url ? <img src={found.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 14, fontWeight: 700, color: '#7a7570' }}>{(found.username || found.email || '?')[0].toUpperCase()}</span>}
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814' }}>{found.full_name || found.username}</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#a09d97' }}>{found.email}</p>
-          </div>
-          <PrimaryBtn onClick={invite} loading={loading} small>Convidar</PrimaryBtn>
+      {/* Lista de resultados quando vem mais de 1 */}
+      {results.length > 1 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {results.map(u => (
+            <UserRow
+              key={u.id}
+              user={u}
+              selected={found?.id === u.id}
+              onSelect={() => setFound(u)}
+              onInvite={() => invite(u)}
+              loading={loading}
+            />
+          ))}
         </div>
+      )}
+
+      {/* Resultado único selecionado */}
+      {found && results.length <= 1 && (
+        <UserRow user={found} selected onInvite={() => invite(found)} loading={loading} />
       )}
 
       {success && <p style={{ margin: 0, fontSize: 13, color: '#10b981', fontWeight: 600 }}>{success}</p>}
       {error && <p style={{ margin: 0, fontSize: 12, color: '#ef4444' }}>{error}</p>}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><GhostBtn onClick={onClose}>Fechar</GhostBtn></div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <GhostBtn onClick={onClose}>Fechar</GhostBtn>
+      </div>
     </Modal>
+  );
+}
+
+function UserRow({ user, selected, onSelect, onInvite, loading }) {
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        background: selected ? '#faf9f7' : '#fff',
+        borderRadius: 12, padding: '12px 14px',
+        border: `1.5px solid ${selected ? '#2c2a26' : '#e2ddd6'}`,
+        cursor: onSelect ? 'pointer' : 'default',
+        transition: 'border-color 0.15s',
+      }}
+    >
+      <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: '#e8e4de', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {user.avatar_url
+          ? <img src={user.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ fontSize: 14, fontWeight: 700, color: '#7a7570' }}>{(user.username || user.email || '?')[0].toUpperCase()}</span>
+        }
+      </div>
+      <div style={{ flex: 1 }}>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814' }}>{user.full_name || user.username}</p>
+        <p style={{ margin: 0, fontSize: 12, color: '#a09d97' }}>@{user.username}</p>
+      </div>
+      <PrimaryBtn onClick={e => { e.stopPropagation(); onInvite(); }} loading={loading} small>Convidar</PrimaryBtn>
+    </div>
   );
 }
 
@@ -317,6 +377,18 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
   const avatarRef = useRef();
 
   const color = team.color || getColorForGroup(team.id);
+
+  // FIX 3: Carrega membros da API ao montar o componente
+  const fetchMembers = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/groups/${team.id}/members/filter/`, { headers: getAuthHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      setMembers(Array.isArray(data) ? data : []);
+    } catch { /* silencia — usa o estado local como fallback */ }
+  }, [team.id]);
+
+  useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
   const patchGroup = useCallback(async (data) => {
     setSaving(true);
@@ -340,35 +412,50 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
     if (description !== team.description) patchGroup({ description });
   };
 
+  // FIX 4: SetAdminView usa POST (não PATCH) e a rota é /members/{user_id}/role/
   const toggleRole = async (userId, currentRole) => {
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
     try {
-      await fetch(`${API}/groups/${team.id}/members/${userId}/role/`, {
-        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ role: newRole }),
+      const res = await fetch(`${API}/groups/${team.id}/members/${userId}/role/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ role: newRole }),
       });
-      setMembers(prev => prev.map(m => (m.user === userId || m.id === userId) ? { ...m, role: newRole } : m));
-    } catch { setError('Erro ao alterar papel'); }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao alterar papel');
+      }
+      setMembers(prev => prev.map(m => (m.user === userId || m.user_id === userId) ? { ...m, role: newRole } : m));
+    } catch (err) { setError(err.message); }
   };
 
-  const kickMember = async (userId) => {
+  // FIX 5: KickMemberView espera o user_id do usuário (não o id do GroupMember)
+  // A URL é /groups/{group_id}/members/{user_id}/kick/ — user_id = m.user (FK) não m.id
+  const kickMember = async (member) => {
     if (!confirm('Remover este membro?')) return;
+    // m.user é a FK para User (int), m.id é o pk do GroupMember
+    const userId = member.user_id || member.user;
     try {
-      await fetch(`${API}/groups/${team.id}/members/${userId}/kick/`, {
+      const res = await fetch(`${API}/groups/${team.id}/members/${userId}/kick/`, {
         method: 'DELETE', headers: getAuthHeaders(),
       });
-      setMembers(prev => prev.filter(m => m.user !== userId && m.id !== userId));
-    } catch { setError('Erro ao remover membro'); }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Erro ao remover membro');
+      }
+      setMembers(prev => prev.filter(m => (m.user_id || m.user) !== userId));
+    } catch (err) { setError(err.message); }
   };
 
   const deleteGroup = async () => {
     if (!confirm(`Excluir a equipe "${team.name}"? Essa ação não pode ser desfeita.`)) return;
     try {
-      await fetch(`${API}/groups/${team.id}/`, { method: 'DELETE', headers: getAuthHeaders() });
+      const res = await fetch(`${API}/groups/${team.id}/`, { method: 'DELETE', headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Erro ao excluir equipe');
       onDelete(team.id);
-    } catch { setError('Erro ao excluir equipe'); }
+    } catch (err) { setError(err.message); }
   };
 
-  // ── Upload de capa via rota dedicada ──
   const changeCover = async (e) => {
     const f = e.target.files[0]; if (!f) return;
     const url = await readFile(f);
@@ -380,7 +467,6 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
     onUpdate({ ...team, cover: url, banner_url: url, color, members });
   };
 
-  // ── Upload de avatar via rota dedicada ──
   const changeAvatar = async (e) => {
     const f = e.target.files[0]; if (!f) return;
     const url = await readFile(f);
@@ -451,13 +537,15 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                   {['Pessoa', 'E-mail', 'Papel', ''].map((h, i) => <span key={i} style={{ fontSize: 11, fontWeight: 700, color: '#c5c2bc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>)}
                 </div>
                 {members.map((m, i) => {
-                  const userId = m.user || m.id;
+                  // FIX 5: Garantir que usamos o user_id correto para as ações
+                  // GroupMemberFilterSerializer retorna: id (do GroupMember), user_id, user_username, etc.
+                  const userId = m.user_id || m.user;
                   const displayName = m.user_full_name || m.full_name || m.user_username || m.username || 'Usuário';
                   const displayEmail = m.user_email || m.email || '';
                   const avatarUrl = m.user_avatar || m.avatar_url || null;
                   const initials = displayName.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2);
                   return (
-                    <div key={m.id || userId} style={{ display: 'grid', gridTemplateColumns: '1fr 180px 100px 40px', gap: 0, padding: '13px 20px', borderTop: i === 0 ? 'none' : '1px solid #f5f3ef', alignItems: 'center', transition: 'background 0.15s' }}
+                    <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 180px 100px 40px', gap: 0, padding: '13px 20px', borderTop: i === 0 ? 'none' : '1px solid #f5f3ef', alignItems: 'center', transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#faf9f7'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ width: 38, height: 38, borderRadius: '50%', background: avatarUrl ? 'none' : color.bg, border: `1.5px solid ${color.dot}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: color.text, overflow: 'hidden', flexShrink: 0 }}>
@@ -466,8 +554,14 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                         <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814' }}>{displayName}</p>
                       </div>
                       <span style={{ fontSize: 13, color: '#a09d97', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail}</span>
-                      <button onClick={() => toggleRole(userId, m.role)} style={{ background: m.role === 'admin' ? color.bg : '#f0ede8', color: m.role === 'admin' ? color.text : '#7a7570', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', width: 'fit-content' }}>{m.role === 'admin' ? 'Admin' : 'Membro'}</button>
-                      <button onClick={() => kickMember(userId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e2ddd6', fontSize: 16, padding: 4, transition: 'color 0.15s', lineHeight: 1, justifySelf: 'end' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#e2ddd6'}>×</button>
+                      <button
+                        onClick={() => toggleRole(userId, m.role)}
+                        disabled={m.role === 'owner'}
+                        style={{ background: m.role === 'admin' ? color.bg : m.role === 'owner' ? '#f0ede8' : '#f0ede8', color: m.role === 'admin' ? color.text : m.role === 'owner' ? '#a09d97' : '#7a7570', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: m.role === 'owner' ? 'default' : 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', width: 'fit-content' }}
+                      >{m.role === 'admin' ? 'Admin' : m.role === 'owner' ? 'Owner' : 'Membro'}</button>
+                      {m.role !== 'owner' && (
+                        <button onClick={() => kickMember(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e2ddd6', fontSize: 16, padding: 4, transition: 'color 0.15s', lineHeight: 1, justifySelf: 'end' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#e2ddd6'}>×</button>
+                      )}
                     </div>
                   );
                 })}
@@ -510,7 +604,16 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
         <div style={{ height: 60 }} />
       </div>
 
-      {showInvite && <InviteMemberModal group={team} onClose={() => setShowInvite(false)} onInvited={() => {}} />}
+      {showInvite && (
+        <InviteMemberModal
+          group={team}
+          onClose={() => setShowInvite(false)}
+          onInvited={() => {
+            // FIX 2: Recarrega membros após convite enviado
+            fetchMembers();
+          }}
+        />
+      )}
     </div>
   );
 }
