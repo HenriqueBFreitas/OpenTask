@@ -79,8 +79,6 @@ async function fetchBlobUrl(rawUrl, fileId = null) {
   }
 }
 
-}
-
 function getFileKind(name = '') {
   const ext = name.split('.').pop().toLowerCase();
   if (IMAGE_EXTS.includes(ext)) return 'image';
