@@ -578,6 +578,17 @@ class GroupFileDetailView(APIView):
         group_file.delete()
         return Response(status=204)
 
+class MyPendingInvitesView(APIView):
+    """GET /api/groups/invites/ → convites pendentes do usuário logado"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        invites = GroupInvite.objects.filter(
+            invited_user=request.user,
+            status='pending'
+        ).select_related('group', 'invited_by')
+        return Response(GroupInviteSerializer(invites, many=True).data)
+
 
 class ShareFileToGroupView(APIView):
     """

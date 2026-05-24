@@ -37,9 +37,13 @@ class GroupSerializer(serializers.ModelSerializer):
 
 
 class GroupInviteSerializer(serializers.ModelSerializer):
+    group_name = serializers.CharField(source='group.name', read_only=True)
+    invited_by_username = serializers.CharField(source='invited_by.username', read_only=True)
+
     class Meta:
         model = GroupInvite
-        fields = ['id', 'group', 'invited_by', 'invited_user', 'status', 'created_at']
+        fields = ['id', 'group', 'group_name', 'invited_by', 'invited_by_username',
+                  'invited_user', 'status', 'created_at']
         read_only_fields = ['id', 'invited_by', 'status', 'created_at']
 
 
@@ -69,7 +73,8 @@ class GroupFileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GroupFile
-        fields = ['id', 'file_id', 'original_name', 'size', 'file_url', 'uploaded_by', 'uploaded_by_username', 'uploaded_by_full_name', 'attached_at']
+        fields = ['id', 'file_id', 'original_name', 'size', 'file_url', 'uploaded_by',
+                  'uploaded_by_username', 'uploaded_by_full_name', 'attached_at']
         read_only_fields = fields
 
     def get_file_url(self, obj):
