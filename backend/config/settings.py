@@ -174,7 +174,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600
 FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600
 
-# Cloudinary storage — credenciais para o pacote django-cloudinary-storage
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDI_NAME'),
     'API_KEY': os.getenv('CLOUDI_API_KEY'),

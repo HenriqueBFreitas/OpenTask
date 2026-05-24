@@ -1,19 +1,15 @@
 'use client';
 import { useEffect, useRef } from 'react';
-
 const getToken = () => localStorage.getItem('access_token');
-const API = 'http://localhost:8000/api';
-
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 export default function ExcalidrawWrapper() {
   const iframeRef = useRef(null);
 
-  // Carrega o board e manda pro iframe depois que ele estiver pronto
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
-
     const sendBoard = () => {
-      fetch(`${API}/boards/`, {
+      fetch(`${API}/tasks/boards/`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       })
         .then(r => r.json())
@@ -26,17 +22,15 @@ export default function ExcalidrawWrapper() {
         })
         .catch(() => {});
     };
-
     iframe.addEventListener('load', sendBoard);
     return () => iframe.removeEventListener('load', sendBoard);
   }, []);
 
-  // Recebe o postMessage do iframe e salva no backend
   useEffect(() => {
     const handleMessage = async (e) => {
       if (e.data?.type !== 'SAVE_BOARD') return;
       const { elements, appState, files } = e.data;
-      await fetch(`${API}/boards/`, {
+      await fetch(`${API}/tasks/boards/`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
