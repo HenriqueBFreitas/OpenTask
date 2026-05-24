@@ -97,6 +97,7 @@ class FileDetailView(APIView):
         file.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+
 class TaskFileListCreateView(APIView):
     """
     GET  /api/tasks/<task_id>/files/   → lista arquivos vinculados a uma task
