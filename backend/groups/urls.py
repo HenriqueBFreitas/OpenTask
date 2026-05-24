@@ -3,7 +3,7 @@ from .views import (
     GroupListCreateView, GroupDetailView,
     SetAdminView, TransferOwnershipView, LeaveGroupView, KickMemberView,
     GroupMemberFilterView,
-    GroupUserSearchView, InviteCreateView, InviteRespondView,
+    GroupUserSearchView, InviteCreateView, InviteRespondView, MyPendingInvitesView,
     GroupTaskListCreateView, GroupTaskDetailView,
     GroupSubTaskDetailView, ShareTaskToGroupView,
     GroupFileListCreateView, GroupFileDetailView, ShareFileToGroupView,
@@ -26,10 +26,11 @@ urlpatterns = [
     path('<int:group_id>/upload-photo/', GroupPhotoUploadView.as_view()),
     path('<int:group_id>/upload-banner/', GroupBannerUploadView.as_view()),
 
-    # Convites — busca por username + convite por ID (lista de amigos) ou username
+    # Convites
+    path('invites/', MyPendingInvitesView.as_view()),                        # GET — meus convites pendentes
+    path('invites/<int:invite_id>/respond/', InviteRespondView.as_view()),   # POST — aceitar/recusar
     path('<int:group_id>/users/search/', GroupUserSearchView.as_view()),
-    path('<int:group_id>/invites/', InviteCreateView.as_view()),
-    path('invites/<int:invite_id>/respond/', InviteRespondView.as_view()),
+    path('<int:group_id>/invites/', InviteCreateView.as_view()),             # POST — criar convite
 
     # Tasks
     path('<int:group_id>/tasks/', GroupTaskListCreateView.as_view()),
