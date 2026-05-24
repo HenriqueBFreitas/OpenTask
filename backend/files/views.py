@@ -5,6 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+import requests as http_requests
+from django.http import HttpResponse
 
 from .models import File, TaskFile
 from .serializers import FileSerializer, TaskFileSerializer
@@ -34,7 +36,7 @@ class FileListCreateView(APIView):
 
 class FileDetailView(APIView):
     """
-    GET    /api/files/<id>/   → retorna um arquivo
+    GET    /api/files/<id>/   → retorna um arquivo (com ?download=1 faz download)
     PATCH  /api/files/<id>/   → atualiza nickname (original_name é protegido)
     DELETE /api/files/<id>/   → deleta o arquivo (registro + arquivo físico)
     """
@@ -50,6 +52,17 @@ class FileDetailView(APIView):
         file = self.get_object(pk, request.user)
         if not file:
             return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.query_params.get('download') == '1':
+            url = file.image_url or ''
+            if not url:
+                return Response({'detail': 'Sem arquivo.'}, status=404)
+            try:
+                r = http_requests.get(url, timeout=30)
+                return HttpResponse(r.content, content_type=r.headers.get('Content-Type', 'application/octet-stream'))
+            except Exception as e:
+                return Response({'detail': str(e)}, status=502)
+
         serializer = FileSerializer(file, context={'request': request})
         return Response(serializer.data)
 
@@ -83,7 +96,8 @@ class FileDetailView(APIView):
                 cloudinary.uploader.destroy(public_id, resource_type=resource_type)
             except Exception:
                 pass
-
+        elif file.file:
+            file.file.delete(save=False)
         file.delete()
         return Response(status=204)
 
