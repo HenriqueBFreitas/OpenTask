@@ -78,9 +78,9 @@ const NOTIFICATION_TYPES = {
     color: '#0284c7',
     lightColor: '#f0f9ff',
     icon: '👥',
-    label: 'Group Invite',
-    accept: 'Join',
-    decline: 'Ignore',
+    label: 'Convite de Grupo',
+    accept: 'Entrar',
+    decline: 'Recusar',
   },
 };
 
@@ -123,7 +123,7 @@ export default function Mascot() {
           list.forEach(r => incoming.push({
             id:      `friend-${r.id}`,
             type:    'friend',
-            message: `${r.from_user?.username ?? 'Someone'} wants to be your friend`,
+            message: `${r.from_user?.username ?? 'Alguém'} quer ser seu amigo`,
             payload: r,
           }));
         }
@@ -134,7 +134,7 @@ export default function Mascot() {
           list.forEach(r => incoming.push({
             id:      `group-${r.id}`,
             type:    'group',
-            message: `You were invited to "${r.group?.name ?? 'a group'}"`,
+            message: `${r.invited_by_username ?? 'Alguém'} te convidou para "${r.group_name ?? 'um grupo'}"`,
             payload: r,
           }));
         }
@@ -145,6 +145,9 @@ export default function Mascot() {
             const newItems = incoming.filter(n => !existingIds.has(n.id));
             return [...prev, ...newItems];
           });
+        } else {
+          // Limpa a fila se não há mais pendentes (ex: respondido em outro dispositivo)
+          setQueue([]);
         }
       } catch (_) {}
     };
@@ -194,17 +197,21 @@ export default function Mascot() {
   const respond = async (accept) => {
     if (!current) return;
     const token = getToken();
-    const action = accept ? 'accept' : 'reject';
     try {
       if (current.type === 'friend') {
+        const action = accept ? 'accept' : 'reject';
         await fetch(`${API}/friends/requests/${current.payload.id}/${action}/`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         });
       } else {
-        await fetch(`${API}/groups/invites/${current.payload.id}/${action}/`, {
+        await fetch(`${API}/groups/invites/${current.payload.id}/respond/`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: accept ? 'accept' : 'decline' }),
         });
       }
     } catch (_) {}
@@ -233,7 +240,7 @@ export default function Mascot() {
       bottom: 24,
       right: 60,
       zIndex: 9990,
-      display: 'flex',
+      display: hasPending ? 'flex' : 'none',
       flexDirection: 'column',
       alignItems: 'center',
       pointerEvents: 'none',
