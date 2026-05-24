@@ -25,23 +25,58 @@ async function refreshAccessToken() {
 }
 
 // ─── Fetch autenticado → Blob URL ─────────────────────────────────────────────
-async function fetchBlobUrl(url) {
+// Retorna { blobUrl, error } — nunca lança exceção
+// fetchBlobUrl: baixa um arquivo como blob.
+// - URLs do próprio backend → Authorization: Bearer token
+// - URLs externas (Cloudinary etc) → tenta direto; se 401/403 usa proxy backend (?download=1)
+async function fetchBlobUrl(rawUrl, fileId = null) {
   try {
-    const base = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api')
+    if (!rawUrl) return { blobUrl: null, error: 'no url' };
+
+    const backendBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api')
       .replace(/\/api\/?$/, '');
-    const fullUrl = url.startsWith('http') ? url : `${base}${url}`;
-    let token = getToken();
+
+    let fullUrl = rawUrl;
+    if (!rawUrl.startsWith('http')) {
+      fullUrl = backendBase + (rawUrl.startsWith('/') ? '' : '/') + rawUrl;
+    }
+
+    const isInternal = (() => {
+      try { return new URL(fullUrl).hostname === new URL(backendBase).hostname; }
+      catch { return false; }
+    })();
+
+    const token = getToken();
+
+    // 1. Tenta direto
     let res = await fetch(fullUrl, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: isInternal && token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (res.status === 401 || res.status === 402) {
+
+    // Token expirado no backend → renova
+    if (isInternal && (res.status === 401 || res.status === 403)) {
       const newToken = await refreshAccessToken();
       if (newToken) res = await fetch(fullUrl, { headers: { Authorization: `Bearer ${newToken}` } });
     }
-    if (!res.ok) return null;
+
+    // 2. URL externa com 401/403 → proxy pelo backend
+    if (!isInternal && (res.status === 401 || res.status === 403) && fileId) {
+      const proxyUrl = `${API}/files/${fileId}/?download=1`;
+      const t = getToken() || '';
+      res = await fetch(proxyUrl, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
+    }
+
+    if (!res.ok) {
+      console.warn('[fetchBlobUrl] status', res.status, fullUrl);
+      return { blobUrl: null, error: `HTTP ${res.status}` };
+    }
+
     const blob = await res.blob();
-    return URL.createObjectURL(blob);
-  } catch { return null; }
+    return { blobUrl: URL.createObjectURL(blob), error: null };
+  } catch (e) {
+    console.error('[fetchBlobUrl] exception', e, rawUrl);
+    return { blobUrl: null, error: String(e) };
+  }
 }
 
 function getFileKind(name = '') {
@@ -146,50 +181,49 @@ function isDarkColor(hex) {
   return (0.299*r + 0.587*g + 0.114*b) / 255 < 0.5;
 }
 
-// ─── PDF Canvas ───────────────────────────────────────────────────────────────
-// Aceita desiredWidth opcional — se não passar, usa a largura natural do container
-function PdfCanvas({ url, desiredWidth, onPageCount, style = {} }) {
-  const canvasRef  = useRef(null);
-  const wrapRef    = useRef(null);
-  const renderRef  = useRef(null);
-  const [ready, setReady]   = useState(false);
-  const [failed, setFailed] = useState(false);
+// ─── Spinner ──────────────────────────────────────────────────────────────────
+function Spinner({ label = 'Carregando...' }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+      <div style={{ width:28, height:28, borderRadius:'50%', border:'3px solid #e0ddd8', borderTopColor:'#8a7f72', animation:'spin_ 0.7s linear infinite' }} />
+      <style>{`@keyframes spin_ { to { transform:rotate(360deg); } }`}</style>
+      <div style={{ fontSize:11, color:'#a09d97', fontWeight:500 }}>{label}</div>
+    </div>
+  );
+}
 
-  // Resolve a largura: prop explícita > largura do wrapper > fallback 600
-  const resolveWidth = useCallback(() => {
-    if (desiredWidth && desiredWidth > 0) return desiredWidth;
-    if (wrapRef.current) {
-      const w = wrapRef.current.getBoundingClientRect().width;
-      if (w > 0) return Math.floor(w);
-    }
-    return 600;
-  }, [desiredWidth]);
+// ─── PDF Canvas (thumbnail no card — 1 página) ────────────────────────────────
+function PdfCanvas({ url, fileId, desiredWidth = 260, style = {} }) {
+  const canvasRef = useRef(null);
+  const wrapRef   = useRef(null);
+  const taskRef   = useRef(null);
+  const [ready,  setReady]  = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [errMsg, setErrMsg] = useState('');
 
   useEffect(() => {
     if (!url) return;
-
-    // Cancela render anterior
-    if (renderRef.current) renderRef.current.cancelled = true;
+    if (taskRef.current) taskRef.current.cancelled = true;
     const task = { cancelled: false };
-    renderRef.current = task;
-    setReady(false); setFailed(false);
+    taskRef.current = task;
+    setReady(false); setFailed(false); setErrMsg('');
 
-    let blobUrlCreated = null;
+    const run = async () => {
+      // Resolve largura
+      const width = desiredWidth > 0 ? desiredWidth
+        : (wrapRef.current ? Math.floor(wrapRef.current.getBoundingClientRect().width) || 260 : 260);
 
-    const doRender = async (width) => {
       try {
         const pdfjsLib = await loadPdfJs();
         if (task.cancelled) return;
 
-        const blobUrl = await fetchBlobUrl(url);
-        if (!blobUrl) { if (!task.cancelled) setFailed(true); return; }
-        blobUrlCreated = blobUrl;
+        const { blobUrl, error } = await fetchBlobUrl(url, fileId);
+        if (!blobUrl) { if (!task.cancelled) { setErrMsg(error||'fetch fail'); setFailed(true); } return; }
         if (task.cancelled) { URL.revokeObjectURL(blobUrl); return; }
 
         const pdf = await pdfjsLib.getDocument(blobUrl).promise;
-        URL.revokeObjectURL(blobUrl); blobUrlCreated = null;
+        URL.revokeObjectURL(blobUrl);
         if (task.cancelled) return;
-        if (onPageCount) onPageCount(pdf.numPages);
 
         const page = await pdf.getPage(1);
         if (task.cancelled) return;
@@ -197,10 +231,10 @@ function PdfCanvas({ url, desiredWidth, onPageCount, style = {} }) {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const vp0    = page.getViewport({ scale: 1 });
-        const scale  = width / vp0.width;
-        const vp     = page.getViewport({ scale });
-        const dpr    = window.devicePixelRatio || 1;
+        const vp0   = page.getViewport({ scale: 1 });
+        const scale = width / vp0.width;
+        const vp    = page.getViewport({ scale });
+        const dpr   = window.devicePixelRatio || 1;
 
         canvas.width  = Math.floor(vp.width  * dpr);
         canvas.height = Math.floor(vp.height * dpr);
@@ -211,90 +245,71 @@ function PdfCanvas({ url, desiredWidth, onPageCount, style = {} }) {
         ctx.scale(dpr, dpr);
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
         if (!task.cancelled) setReady(true);
-      } catch (err) {
-        console.error('[PdfCanvas]', err);
-        if (!task.cancelled) setFailed(true);
+      } catch (e) {
+        console.error('[PdfCanvas]', e);
+        if (!task.cancelled) { setErrMsg(String(e)); setFailed(true); }
       }
     };
 
-    // Tenta imediatamente; se o wrapper ainda não tiver dimensões, aguarda um frame
-    const width = resolveWidth();
-    if (width > 0) {
-      doRender(width);
-    } else {
-      const raf = requestAnimationFrame(() => doRender(resolveWidth()));
-      const orig = task.cancelled;
-      // limpa o raf se o efeito for cancelado
+    // Se o wrapper ainda não tem dimensões, espera um frame
+    if (wrapRef.current && wrapRef.current.getBoundingClientRect().width === 0) {
+      const raf = requestAnimationFrame(run);
       task._raf = raf;
+    } else {
+      run();
     }
 
     return () => {
       task.cancelled = true;
       if (task._raf) cancelAnimationFrame(task._raf);
-      if (blobUrlCreated) { URL.revokeObjectURL(blobUrlCreated); blobUrlCreated = null; }
     };
-  }, [url, desiredWidth]); // eslint-disable-line
+  }, [url, desiredWidth]);
 
-  if (failed) return <DocFallback kind="pdf" />;
+  if (failed) return (
+    <div style={{ width:'100%', aspectRatio:'3/4', background:'#f0ede8', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, borderRadius:'12px 12px 0 0' }}>
+      <DocFallback kind="pdf" />
+      {errMsg && <div style={{ fontSize:9, color:'#c0392b', padding:'0 8px', textAlign:'center', wordBreak:'break-all' }}>{errMsg}</div>}
+    </div>
+  );
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative', width: '100%', background: '#f0ede8', ...style }}>
-      <canvas
-        ref={canvasRef}
-        style={{
-          display: 'block', maxWidth: '100%', height: 'auto',
-          opacity: ready ? 1 : 0, transition: 'opacity 0.3s',
-        }}
-      />
+    <div ref={wrapRef} style={{ position:'relative', width:'100%', background:'#f0ede8', ...style }}>
+      <canvas ref={canvasRef} style={{ display:'block', maxWidth:'100%', height:'auto', opacity: ready ? 1 : 0, transition:'opacity 0.3s' }} />
       {!ready && (
-        <div style={{
-          position: 'absolute', inset: 0, minHeight: 160,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <PdfLoadingSpinner />
+        <div style={{ position:'absolute', inset:0, minHeight:160, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <Spinner label="Carregando PDF..." />
         </div>
       )}
     </div>
   );
 }
 
-// Spinner leve para o loading do PDF
-function PdfLoadingSpinner() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-      <div style={{
-        width: 28, height: 28, borderRadius: '50%',
-        border: '3px solid #e0ddd8', borderTopColor: '#8a7f72',
-        animation: 'pdfSpin 0.7s linear infinite',
-      }} />
-      <style>{`@keyframes pdfSpin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ fontSize: 11, color: '#a09d97', fontWeight: 500 }}>Carregando PDF...</div>
-    </div>
-  );
-}
-
-// ─── PDF Preview painel (scroll de múltiplas páginas) ─────────────────────────
-function PdfPanelPreview({ url, onPageCount }) {
-  const wrapRef    = useRef(null);
-  const renderRef  = useRef(null);
-  const [pages, setPages]   = useState([]); // array de { canvas, ready }
-  const [failed, setFailed] = useState(false);
-  const [loading, setLoading] = useState(true);
+// ─── PDF painel (todas as páginas) ────────────────────────────────────────────
+function PdfPanelPreview({ url, fileId, onPageCount }) {
+  const wrapRef   = useRef(null);
+  const taskRef   = useRef(null);
+  const [pages,   setPages]   = useState([]);
+  const [status,  setStatus]  = useState('loading'); // loading | done | failed
+  const [errMsg,  setErrMsg]  = useState('');
 
   useEffect(() => {
     if (!url) return;
-    if (renderRef.current) renderRef.current.cancelled = true;
+    if (taskRef.current) taskRef.current.cancelled = true;
     const task = { cancelled: false };
-    renderRef.current = task;
-    setPages([]); setFailed(false); setLoading(true);
+    taskRef.current = task;
+    setPages([]); setStatus('loading'); setErrMsg('');
 
-    (async () => {
+    const run = async () => {
       try {
         const pdfjsLib = await loadPdfJs();
         if (task.cancelled) return;
 
-        const blobUrl = await fetchBlobUrl(url);
-        if (!blobUrl) { if (!task.cancelled) setFailed(true); setLoading(false); return; }
+        const { blobUrl, error } = await fetchBlobUrl(url, fileId);
+        if (!blobUrl) {
+          console.error('[PdfPanel] fetchBlobUrl failed:', error, url);
+          if (!task.cancelled) { setErrMsg(error||''); setStatus('failed'); }
+          return;
+        }
         if (task.cancelled) { URL.revokeObjectURL(blobUrl); return; }
 
         const pdf = await pdfjsLib.getDocument(blobUrl).promise;
@@ -304,22 +319,27 @@ function PdfPanelPreview({ url, onPageCount }) {
         const total = pdf.numPages;
         if (onPageCount) onPageCount(total);
 
-        // Prepara array de refs p/ os canvases
-        const entries = Array.from({ length: total }, (_, i) => ({ index: i + 1, ready: false }));
-        if (!task.cancelled) { setPages(entries); setLoading(false); }
+        // Inicializa slots vazios
+        if (!task.cancelled) {
+          setPages(Array.from({ length: total }, (_, i) => ({ index: i+1, canvas: null })));
+          setStatus('done');
+        }
 
-        // Renderiza página por página
-        const containerWidth = wrapRef.current
-          ? Math.floor(wrapRef.current.getBoundingClientRect().width - 48)
-          : 650;
+        // Resolve largura do container (aguarda DOM se necessário)
+        let containerW = 650;
+        if (wrapRef.current) {
+          const w = wrapRef.current.getBoundingClientRect().width;
+          containerW = w > 0 ? Math.floor(w - 48) : 650;
+        }
 
+        // Renderiza cada página
         for (let i = 1; i <= total; i++) {
           if (task.cancelled) break;
           const page = await pdf.getPage(i);
           if (task.cancelled) break;
 
           const vp0   = page.getViewport({ scale: 1 });
-          const scale = Math.min(containerWidth, 700) / vp0.width;
+          const scale = Math.min(containerW, 700) / vp0.width;
           const vp    = page.getViewport({ scale });
           const dpr   = window.devicePixelRatio || 1;
 
@@ -334,75 +354,63 @@ function PdfPanelPreview({ url, onPageCount }) {
           await page.render({ canvasContext: ctx, viewport: vp }).promise;
           if (task.cancelled) break;
 
-          if (!task.cancelled) {
-            setPages(prev => prev.map((p, idx) =>
-              idx === i - 1 ? { ...p, canvas, ready: true } : p
-            ));
-          }
+          setPages(prev => prev.map((p, idx) => idx === i-1 ? { ...p, canvas } : p));
         }
-      } catch (err) {
-        console.error('[PdfPanelPreview]', err);
-        if (!task.cancelled) setFailed(true);
+      } catch (e) {
+        console.error('[PdfPanel]', e);
+        if (!task.cancelled) { setErrMsg(String(e)); setStatus('failed'); }
       }
-    })();
+    };
 
-    return () => { task.cancelled = true; };
+    // Aguarda 1 frame para o wrapper ter dimensões
+    const raf = requestAnimationFrame(run);
+    task._raf = raf;
+
+    return () => {
+      task.cancelled = true;
+      if (task._raf) cancelAnimationFrame(task._raf);
+    };
   }, [url]);
 
-  if (failed) return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:12, paddingTop:60 }}>
+  if (status === 'failed') return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, paddingTop:60, textAlign:'center' }}>
       <div style={{ fontSize:14, fontWeight:600, color:'#6b6760' }}>Falha ao carregar o PDF</div>
-      <div style={{ fontSize:12, color:'#a09d97' }}>Verifique o arquivo ou baixe para abrir localmente</div>
+      {errMsg && <div style={{ fontSize:11, color:'#c0392b', maxWidth:400, wordBreak:'break-all' }}>{errMsg}</div>}
+      <div style={{ fontSize:12, color:'#a09d97', marginTop:4 }}>Verifique o arquivo ou baixe para abrir localmente</div>
     </div>
   );
 
-  if (loading) return (
+  if (status === 'loading') return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:300 }}>
-      <PdfLoadingSpinner />
+      <Spinner label="Carregando PDF..." />
     </div>
   );
 
   return (
     <div ref={wrapRef} style={{ width:'100%', display:'flex', flexDirection:'column', gap:16, alignItems:'center' }}>
       {pages.map((p, i) => (
-        <div key={i} style={{
-          width:'100%', maxWidth:700, background:'#fff',
-          borderRadius:6, overflow:'hidden',
-          boxShadow:'0 1px 8px rgba(0,0,0,0.08)',
-          position:'relative',
-        }}>
-          {/* Número da página */}
-          <div style={{
-            position:'absolute', top:8, right:10,
-            background:'rgba(0,0,0,0.35)', color:'#fff',
-            fontSize:10, fontWeight:700, borderRadius:4,
-            padding:'2px 7px', zIndex:2, backdropFilter:'blur(4px)',
-          }}>
+        <div key={i} style={{ width:'100%', maxWidth:700, background:'#fff', borderRadius:6, overflow:'hidden', boxShadow:'0 1px 8px rgba(0,0,0,0.08)', position:'relative' }}>
+          <div style={{ position:'absolute', top:8, right:10, background:'rgba(0,0,0,0.35)', color:'#fff', fontSize:10, fontWeight:700, borderRadius:4, padding:'2px 7px', zIndex:2, backdropFilter:'blur(4px)' }}>
             {i + 1}
           </div>
-
-          {p.ready ? (
-            <CanvasDisplay canvas={p.canvas} />
-          ) : (
-            <div style={{ height:200, display:'flex', alignItems:'center', justifyContent:'center', background:'#f7f5f0' }}>
-              <PdfLoadingSpinner />
-            </div>
-          )}
+          {p.canvas
+            ? <CanvasDisplay canvas={p.canvas} />
+            : <div style={{ height:200, display:'flex', alignItems:'center', justifyContent:'center', background:'#f7f5f0' }}><Spinner label={`Página ${i+1}...`} /></div>
+          }
         </div>
       ))}
     </div>
   );
 }
 
-// Monta um canvas já renderizado dentro de um div React
 function CanvasDisplay({ canvas }) {
   const ref = useRef(null);
   useEffect(() => {
     if (ref.current && canvas) {
       ref.current.innerHTML = '';
-      canvas.style.display = 'block';
+      canvas.style.display  = 'block';
       canvas.style.maxWidth = '100%';
-      canvas.style.height = 'auto';
+      canvas.style.height   = 'auto';
       ref.current.appendChild(canvas);
     }
   }, [canvas]);
@@ -410,8 +418,8 @@ function CanvasDisplay({ canvas }) {
 }
 
 // ─── DOCX Preview ─────────────────────────────────────────────────────────────
-function DocxPreview({ url, thumbnail = false }) {
-  const [html, setHtml]     = useState(null);
+function DocxPreview({ url, fileId, thumbnail = false }) {
+  const [html,   setHtml]   = useState(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -421,7 +429,7 @@ function DocxPreview({ url, thumbnail = false }) {
     (async () => {
       try {
         const mammoth = await loadMammoth();
-        const blobUrl = await fetchBlobUrl(url);
+        const { blobUrl } = await fetchBlobUrl(url, fileId);
         if (!blobUrl) { if (!cancelled) setFailed(true); return; }
         const res = await fetch(blobUrl);
         URL.revokeObjectURL(blobUrl);
@@ -467,22 +475,16 @@ function SlideRender({ shapes, bg, bgImageSrc, mini = false }) {
   const otherShapes   = shapes.filter(s => s !== titleShape && s !== subtitleShape);
 
   return (
-    <div style={{
-      width:'100%', height:'100%', background:bgColor, position:'relative',
-      overflow:'hidden', display:'flex', flexDirection:'column',
-      justifyContent:'center', alignItems:'center',
-      padding: mini ? '4px 6px' : '32px 40px',
-      boxSizing:'border-box', gap: mini ? 3 : 14,
-    }}>
+    <div style={{ width:'100%', height:'100%', background:bgColor, position:'relative', overflow:'hidden', display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', padding: mini?'4px 6px':'32px 40px', boxSizing:'border-box', gap: mini?3:14 }}>
       {bgImageSrc && <img src={bgImageSrc} alt="" style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', opacity:0.35 }} />}
-      {!mini && <div style={{ position:'absolute', left:0, top:0, bottom:0, width:5, background: dark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.12)' }} />}
+      {!mini && <div style={{ position:'absolute', left:0, top:0, bottom:0, width:5, background: dark?'rgba(255,255,255,0.25)':'rgba(0,0,0,0.12)' }} />}
       {titleShape && (
-        <div style={{ position:'relative', zIndex:1, fontSize: mini ? 7 : Math.min(titleShape.fontSize||36,44), fontWeight:700, color:titleShape.color||defText, textAlign:'center', lineHeight:1.2, letterSpacing: mini?0:'-0.02em', maxWidth:'100%', wordBreak:'break-word' }}>
+        <div style={{ position:'relative', zIndex:1, fontSize: mini?7:Math.min(titleShape.fontSize||36,44), fontWeight:700, color:titleShape.color||defText, textAlign:'center', lineHeight:1.2, letterSpacing: mini?0:'-0.02em', maxWidth:'100%', wordBreak:'break-word' }}>
           {titleShape.texts.join(' ')}
         </div>
       )}
       {subtitleShape && (
-        <div style={{ position:'relative', zIndex:1, fontSize: mini ? 4 : Math.min(subtitleShape.fontSize||18,22), fontWeight: subtitleShape.bold?600:400, color:subtitleShape.color||subText, textAlign:'center', lineHeight:1.4, maxWidth:'100%', wordBreak:'break-word', opacity:0.9 }}>
+        <div style={{ position:'relative', zIndex:1, fontSize: mini?4:Math.min(subtitleShape.fontSize||18,22), fontWeight: subtitleShape.bold?600:400, color:subtitleShape.color||subText, textAlign:'center', lineHeight:1.4, maxWidth:'100%', wordBreak:'break-word', opacity:0.9 }}>
           {subtitleShape.texts.slice(0, mini?2:4).join(' · ')}
         </div>
       )}
@@ -492,7 +494,7 @@ function SlideRender({ shapes, bg, bgImageSrc, mini = false }) {
         </div>
       ))}
       {!shapes.length && (
-        <div style={{ position:'relative', zIndex:1, display:'flex', flexDirection:'column', alignItems:'center', gap: mini?3:10, opacity:0.5 }}>
+        <div style={{ position:'relative', zIndex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:mini?3:10, opacity:0.5 }}>
           <PptIconSmall color={dark?'#fff':'#c47a3a'} size={mini?20:48} />
           {!mini && <div style={{ fontSize:13, color:defText }}>Slide sem texto</div>}
         </div>
@@ -502,7 +504,7 @@ function SlideRender({ shapes, bg, bgImageSrc, mini = false }) {
 }
 
 // ─── PPT Preview ──────────────────────────────────────────────────────────────
-function PptPreview({ url, thumbnail = false, onDownload }) {
+function PptPreview({ url, fileId, thumbnail = false, onDownload }) {
   const [state, setState] = useState({ status:'loading', shapes:[], bg:null, slideCount:0, thumbSrc:null, bgImageSrc:null });
 
   useEffect(() => {
@@ -513,7 +515,7 @@ function PptPreview({ url, thumbnail = false, onDownload }) {
     (async () => {
       try {
         const JSZip = await loadJSZip();
-        const blobUrl = await fetchBlobUrl(url);
+        const { blobUrl } = await fetchBlobUrl(url, fileId);
         if (!blobUrl) { if (!cancelled) setState(s => ({...s, status:'failed'})); return; }
         const res = await fetch(blobUrl);
         URL.revokeObjectURL(blobUrl);
@@ -578,7 +580,7 @@ function PptPreview({ url, thumbnail = false, onDownload }) {
   if (thumbnail) {
     if (status === 'loading') return (
       <div style={{ width:'100%', aspectRatio:'3/4', borderRadius:'12px 12px 0 0', background:'#fdf0e8', display:'flex', alignItems:'center', justifyContent:'center' }}>
-        <DocFallback kind="ppt" loading />
+        <Spinner />
       </div>
     );
     if (thumbSrc) return (
@@ -597,7 +599,7 @@ function PptPreview({ url, thumbnail = false, onDownload }) {
 
   if (status === 'loading') return (
     <div style={{ width:'100%', height:320, borderRadius:8, background:'#fdf0e8', display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <DocFallback kind="ppt" loading />
+      <Spinner />
     </div>
   );
 
@@ -631,7 +633,7 @@ function SlideBadge({ count }) {
   return <div style={{ position:'absolute', bottom:6, right:6, background:'rgba(0,0,0,0.55)', color:'#fff', fontSize:9, fontWeight:700, borderRadius:4, padding:'2px 6px' }}>{count} slides</div>;
 }
 
-function PptIconSmall({ color = '#c47a3a', size = 32 }) {
+function PptIconSmall({ color='#c47a3a', size=32 }) {
   return (
     <div style={{ width:size, height:size*1.25, borderRadius:size*0.12, background:'#fff', boxShadow:'0 2px 10px rgba(0,0,0,0.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ width:size*0.55, height:size*0.38, borderRadius:size*0.06, background:color, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -641,7 +643,7 @@ function PptIconSmall({ color = '#c47a3a', size = 32 }) {
   );
 }
 
-function DocFallback({ kind = 'doc', loading = false }) {
+function DocFallback({ kind='doc', loading=false }) {
   const p = kind==='pdf'  ? { bg:'#f0ede8', accent:'#8a7f72', label:'PDF' }
            : kind==='docx' ? { bg:'#e8edf5', accent:'#5b7fa6', label:'DOC' }
            : kind==='ppt'  ? { bg:'#fdf0e8', accent:'#c47a3a', label:'PPT' }
@@ -667,11 +669,11 @@ const CardPreview = ({ doc }) => {
   );
   if (kind === 'pdf' && doc.file_url) return (
     <div style={{ width:'100%', aspectRatio:'3/4', overflow:'hidden', borderRadius:'12px 12px 0 0', flexShrink:0 }}>
-      <PdfCanvas url={doc.file_url} desiredWidth={260} style={{ borderRadius:'12px 12px 0 0', height:'100%' }} />
+      <PdfCanvas url={doc.file_url} fileId={doc.id} desiredWidth={260} style={{ borderRadius:'12px 12px 0 0' }} />
     </div>
   );
-  if (kind === 'docx' && doc.file_url) return <DocxPreview url={doc.file_url} thumbnail />;
-  if (kind === 'ppt'  && doc.file_url) return <PptPreview  url={doc.file_url} thumbnail />;
+  if (kind === 'docx' && doc.file_url) return <DocxPreview url={doc.file_url} fileId={doc.id} thumbnail />;
+  if (kind === 'ppt'  && doc.file_url) return <PptPreview  url={doc.file_url} fileId={doc.id} thumbnail />;
   return <DocFallback kind={kind} />;
 };
 
@@ -696,7 +698,6 @@ const DocCard = ({ doc, isSelected, onClick, onDelete }) => {
 // ─── Painel lateral ───────────────────────────────────────────────────────────
 const DocPreviewPanel = ({ doc, onClose }) => {
   const [pageCount, setPageCount] = useState(null);
-
   useEffect(() => { setPageCount(null); }, [doc?.id]);
 
   if (!doc) return null;
@@ -709,7 +710,6 @@ const DocPreviewPanel = ({ doc, onClose }) => {
 
   return (
     <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', background:'#f7f5f0', minWidth:0 }}>
-      {/* Header */}
       <div style={{ padding:'14px 20px', background:'#fff', borderBottom:'1px solid #e8e5e0', display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
         <div style={{ flex:1, overflow:'hidden', minWidth:0 }}>
           <div style={{ fontSize:13, fontWeight:700, color:'#2c2a26', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{doc.name}</div>
@@ -719,22 +719,21 @@ const DocPreviewPanel = ({ doc, onClose }) => {
         <button onClick={onClose} style={{ background:'#f0ede8', border:'none', borderRadius:7, width:30, height:30, cursor:'pointer', fontSize:16, color:'#7a7570', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
       </div>
 
-      {/* Conteúdo — scroll aqui */}
-      <div style={{ flex:1, overflowY:'auto', overflowX:'hidden', padding:24, display:'flex', flexDirection:'column', alignItems:'center', gap:0 }}>
+      <div style={{ flex:1, overflowY:'auto', overflowX:'hidden', padding:24, display:'flex', flexDirection:'column', alignItems:'center' }}>
         {kind === 'image' && (
           <img src={doc.file_url} alt={doc.name} style={{ maxWidth:'100%', borderRadius:8, boxShadow:'0 2px 16px rgba(0,0,0,0.08)', objectFit:'contain' }} />
         )}
         {kind === 'pdf' && (
-          <PdfPanelPreview url={doc.file_url} onPageCount={setPageCount} />
+          <PdfPanelPreview url={doc.file_url} fileId={doc.id} onPageCount={setPageCount} />
         )}
         {kind === 'docx' && (
           <div style={{ width:'100%', maxWidth:700 }}>
-            <DocxPreview url={doc.file_url} thumbnail={false} />
+            <DocxPreview url={doc.file_url} fileId={doc.id} thumbnail={false} />
           </div>
         )}
         {kind === 'ppt' && (
           <div style={{ width:'100%', maxWidth:700 }}>
-            <PptPreview url={doc.file_url} thumbnail={false} onDownload={handleDownload} />
+            <PptPreview url={doc.file_url} fileId={doc.id} thumbnail={false} onDownload={handleDownload} />
           </div>
         )}
         {kind === 'doc' && (
@@ -828,7 +827,6 @@ export default function DocsView() {
         </div>
       )}
 
-      {/* Lista */}
       <div style={{ width: selectedDoc ? 420 : '100%', flexShrink:0, display:'flex', flexDirection:'column', borderRight: selectedDoc ? '1px solid #e8e5e0' : 'none', transition:'width 0.2s', overflow:'hidden', background:'#faf9f7' }}>
         <div style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid #e8e5e0', background:'#fff', flexShrink:0 }}>
           <input placeholder="Buscar arquivos..." value={search} onChange={e => setSearch(e.target.value)}
