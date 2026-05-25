@@ -2,6 +2,8 @@
 
 A full-stack collaborative productivity app built with **Django REST Framework** and **Next.js**. Users can manage personal tasks, study pages, files, and collaborate in groups — with group tasks, file sharing, member roles, friend requests, and a Kanban/Excalidraw board. Supports JWT authentication and Google OAuth login.
 
+**🚀 Live demo:** [opentask-davi-sudekums-projects.vercel.app](https://opentask-davi-sudekums-projects.vercel.app/login)
+
 ---
 
 ## Tech Stack
