@@ -1094,12 +1094,16 @@ export default function TasksView() {
         const positions = loadPositions();
 
         let mapped = data.map((t, i) => {
-          const grps = t.groups || [];
+          const rawGroups = t.groups || [];
+          // Normaliza: grupos podem vir como objetos {id, name,...} ou como IDs diretos
+          const grpIds = rawGroups.map((g) =>
+            typeof g === 'object' && g !== null ? g.id : g
+          );
           return {
             ...t,
             subtasks: t.subtasks || [],
-            groups: grps,
-            isPessoal: t.is_personal ?? (grps.length === 0),
+            groups: grpIds, // sempre array de IDs
+            isPessoal: t.is_personal ?? (grpIds.length === 0),
             _x: positions[t.id]?.x ?? 30 + (i % 4) * 290,
             _y: positions[t.id]?.y ?? 30 + Math.floor(i / 4) * 340,
           };
@@ -1124,10 +1128,18 @@ export default function TasksView() {
 
   const inWorkspace = (t) => {
     const tg = Array.isArray(t.groups) ? t.groups : [];
+
+    // Normaliza os IDs do grupo da tarefa para string para comparação segura
+    // A API pode retornar IDs como int ou string, e grupos podem ser objetos {id, name} ou IDs diretos
+    const tgIds = tg.map((g) => String(typeof g === 'object' && g !== null ? g.id : g));
+
     if (activeWorkspace === null) {
-      return t.isPessoal === true || t.is_personal === true || tg.length === 0;
+      // Workspace "Pessoal": tarefas sem nenhum grupo OU marcadas como pessoal
+      return t.is_personal === true || t.isPessoal === true || tgIds.length === 0;
     }
-    return tg.includes(activeWorkspace) || tg.includes(String(activeWorkspace));
+
+    // Workspace de grupo: tarefa pertence ao grupo se o ID está na lista
+    return tgIds.includes(String(activeWorkspace));
   };
 
   const workspaceTasks = tasks.filter(inWorkspace);
@@ -1258,7 +1270,10 @@ export default function TasksView() {
             ? {
               ...t,
               subtasks: t.subtasks || [],
-              groups: t.groups || form.groups || [],
+              // Normaliza grupos da resposta da API (podem vir como objetos ou IDs)
+              groups: (t.groups || form.groups || []).map((g) =>
+                typeof g === 'object' && g !== null ? g.id : g
+              ),
               isPessoal: t.is_personal ?? true,
               _x: x, _y: y,
               _pending: false,
@@ -1297,7 +1312,7 @@ export default function TasksView() {
 
   const addSubtask = async (taskId, title) => {
     try {
-      const res = await fetch(`${API}/subtasks/`, {
+      const res = await fetch(`${API}/tasks/subtasks/`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ task: taskId, title, completed: false }),
@@ -1324,7 +1339,7 @@ export default function TasksView() {
       }))
     );
     try {
-      const res = await fetch(`${API}/subtasks/${sub.id}/`, {
+      const res = await fetch(`${API}/tasks/subtasks/${sub.id}/`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ completed: !sub.completed }),
