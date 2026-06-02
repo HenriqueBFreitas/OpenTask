@@ -1,31 +1,44 @@
 import cloudinary.uploader
+from django.db.models import Q
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.views import APIView
+
 from .models import Task, SubTask, TaskImage, Board
 from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
-from rest_framework.views import APIView
+
+
+def user_group_ids(user):
+    """Retorna os IDs dos grupos que o usuário faz parte (como membro ou owner)."""
+    return user.group_memberships.values_list('group_id', flat=True)
 
 
 class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
-    # JSONParser e FormParser são os defaults do DRF; MultiPartParser é necessário para upload de imagens
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_queryset(self):
-        return Task.objects.filter(user=self.request.user)
+        user = self.request.user
+        groups = user_group_ids(user)
+        return Task.objects.filter(
+            # Tasks próprias (pessoais ou de grupo criadas por ele)
+            Q(user=user) |
+            # Tasks de grupo criadas por outros membros do mesmo grupo
+            Q(groups__in=groups, is_personal=False)
+        ).distinct()
 
     def perform_create(self, serializer):
         task = serializer.save(user=self.request.user)
-        # ManyToMany precisa ser setado após o save
         groups = self.request.data.get('groups', [])
         if groups:
             task.groups.set(groups)
-        task.save()
+            task.save()
+
 
     @action(
         detail=True,
@@ -35,18 +48,14 @@ class TaskViewSet(ModelViewSet):
     )
     def upload_images(self, request, pk=None):
         task = self.get_object()
-
         files = request.FILES.getlist('images')
-
         if not files:
             return Response({"error": "Nenhuma imagem enviada"}, status=400)
-
         created = []
         for file in files:
             result = cloudinary.uploader.upload(file)
             img = TaskImage.objects.create(task=task, image_url=result["secure_url"])
             created.append(TaskImageSerializer(img, context={'request': request}).data)
-
         return Response(created, status=status.HTTP_201_CREATED)
 
 
@@ -55,13 +64,23 @@ class SubTaskViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return SubTask.objects.filter(task__user=self.request.user)
+        user = self.request.user
+        groups = user_group_ids(user)
+        return SubTask.objects.filter(
+            # Subtasks de tasks próprias
+            Q(task__user=user) |
+            # Subtasks de tasks de grupo que o usuário faz parte
+            Q(task__groups__in=groups, task__is_personal=False)
+        ).distinct()
+
 
 class BoardView(APIView):
     permission_classes = [IsAuthenticated]
+
     def get(self, request):
         board, _ = Board.objects.get_or_create(user=request.user)
         return Response(BoardSerializer(board).data)
+
     def put(self, request):
         board, _ = Board.objects.get_or_create(user=request.user)
         serializer = BoardSerializer(board, data=request.data, partial=True)
