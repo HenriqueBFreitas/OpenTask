@@ -8,7 +8,7 @@ import uuid
 
 
 ALLOWED_EXTENSIONS = [
-    'jpg', 'jpeg', 'png', 'webp', 'md"
+    'jpg', 'jpeg', 'png', 'webp', 'md'
     'pdf', 'doc', 'docx', 'xls', 'xlsx',
     'ppt', 'pptx',
     'txt', 'csv',
