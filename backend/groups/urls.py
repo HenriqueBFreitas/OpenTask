@@ -5,7 +5,7 @@ from .views import (
     GroupMemberFilterView,
     GroupUserSearchView, InviteCreateView, InviteRespondView,
     GroupTaskListCreateView, GroupTaskDetailView,
-    GroupSubTaskDetailView, ShareTaskToGroupView,
+    GroupSubTaskListCreateView, GroupSubTaskDetailView, ShareTaskToGroupView,
     GroupFileListCreateView, GroupFileDetailView, ShareFileToGroupView,
     GroupPhotoUploadView, GroupBannerUploadView,
 )
@@ -34,6 +34,7 @@ urlpatterns = [
     # Tasks
     path('<int:group_id>/tasks/', GroupTaskListCreateView.as_view()),
     path('<int:group_id>/tasks/<int:pk>/', GroupTaskDetailView.as_view()),
+    path('subtasks/', GroupSubTaskListCreateView.as_view()),
     path('subtasks/<int:pk>/', GroupSubTaskDetailView.as_view()),
     path('<int:group_id>/share-task/<int:task_id>/', ShareTaskToGroupView.as_view()),
 

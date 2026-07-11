@@ -432,6 +432,20 @@ class GroupTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         if not requester or not can_delete_task(requester, task):
             return Response({'error': 'Sem permissão para deletar.'}, status=403)
         return super().destroy(request, *args, **kwargs)
+    
+class GroupSubTaskListCreateView(generics.ListCreateAPIView):
+    serializer_class = GroupSubTaskSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return GroupSubTask.objects.filter(task__group__members__user=self.request.user)
+
+    def perform_create(self, serializer):
+        task = serializer.validated_data.get('task')
+        if not get_member(self.request.user, task.group):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Você não é membro deste grupo.')
+        serializer.save()
 
 
 class GroupSubTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
