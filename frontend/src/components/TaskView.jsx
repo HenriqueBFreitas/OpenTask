@@ -964,7 +964,7 @@ function CompletedView({ tasks, groups, onUpdate, onDelete, onAddSubtask, onTogg
           width: '100%', flex: 1, gap: 12,
         }}
       >
-        <div style={{ fontSize: 52, opacity: 0.13 }}>🎉</div>
+        <div style={{ fontSize: 52, opacity: 0.13 }}></div>
         <span style={{ fontSize: 16, fontWeight: 700, color: '#2c2a26' }}>
           Nenhuma tarefa concluída ainda
         </span>

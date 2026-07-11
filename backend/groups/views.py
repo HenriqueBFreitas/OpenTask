@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
+from django.http import HttpResponse
+import requests as http_requests
 
 from .models import Group, GroupMember, GroupInvite, GroupTask, GroupSubTask, GroupFile
 from .serializers import (
@@ -577,6 +579,37 @@ class GroupFileDetailView(APIView):
             return Response({'error': 'Sem permissão para remover este arquivo.'}, status=403)
         group_file.delete()
         return Response(status=204)
+
+class GroupFileDownloadView(APIView):
+    """
+    GET /api/groups/<group_id>/files/<pk>/download/
+    Qualquer membro do grupo pode baixar o arquivo — faz proxy do Cloudinary.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, group_id, pk):
+        group = get_object_or_404(Group, pk=group_id)
+        if not get_member(request.user, group):
+            return Response({'error': 'Sem acesso.'}, status=403)
+        group_file = get_object_or_404(GroupFile, pk=pk, group=group)
+        file_obj = group_file.file
+
+        url = file_obj.image_url or ''
+        if not url and file_obj.file:
+            raw = file_obj.file.url
+            url = raw if raw.startswith('http') else request.build_absolute_uri(raw)
+        if not url:
+            return Response({'detail': 'Sem arquivo.'}, status=404)
+
+        try:
+            r = http_requests.get(url, timeout=30)
+            return HttpResponse(
+                r.content,
+                content_type=r.headers.get('Content-Type', 'application/octet-stream'),
+            )
+        except Exception as e:
+            return Response({'detail': str(e)}, status=502)
+
 
 class MyPendingInvitesView(APIView):
     """GET /api/groups/invites/ → convites pendentes do usuário logado"""
