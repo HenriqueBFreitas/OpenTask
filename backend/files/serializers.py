@@ -48,9 +48,14 @@ class FileSerializer(serializers.ModelSerializer):
     def get_file_url(self, obj):
         if obj.image_url:
             return obj.image_url
-        request = self.context.get('request')
-        if obj.file and request:
-            return request.build_absolute_uri(obj.file.url)
+        if obj.file:
+            raw = obj.file.url
+            # Se o storage já retornou uma URL absoluta (Cloudinary), usa direto
+            if raw.startswith('http'):
+                return raw
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(raw)
         return None
 
     def get_display_name(self, obj):

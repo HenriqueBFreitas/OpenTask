@@ -4,12 +4,19 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.conf import settings
 from django.db import IntegrityError
 from .utils import generate_unique_username
 from .models import CustomUser
-from .serializers import RegisterSerializer, EmailTokenObtainPairSerializer, UsernameUpdateSerializer
+from .serializers import (
+    RegisterSerializer,
+    EmailTokenObtainPairSerializer,
+    UsernameUpdateSerializer,
+    ProfileUpdateSerializer,
+)
 import requests
+import cloudinary.uploader
 
 class LoginView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
@@ -135,12 +142,58 @@ class MeView(APIView):
     def get(self, request):
         user = request.user
         return Response({
-            'username': user.username,
-            'full_name': user.full_name,
-            'email': user.email,
-            'avatar': getattr(user, 'avatar_url', None),
+            'username':     user.username,
+            'full_name':    user.full_name,
+            'email':        user.email,
+            'avatar':       getattr(user, 'avatar_url', None),
             'username_set': user.username_set,
         })
+
+    def patch(self, request):
+        serializer = ProfileUpdateSerializer(
+            instance=request.user,
+            data=request.data,
+            partial=True,
+        )
+        if serializer.is_valid():
+            user = serializer.save()
+            return Response({
+                'username':     user.username,
+                'full_name':    user.full_name,
+                'email':        user.email,
+                'avatar':       getattr(user, 'avatar_url', None),
+                'username_set': user.username_set,
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AvatarUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes     = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        avatar = request.FILES.get('avatar')
+        if not avatar:
+            return Response({'detail': 'Nenhuma imagem enviada.'}, status=400)
+
+        ext = avatar.name.split('.')[-1].lower()
+        if ext not in {'jpg', 'jpeg', 'png', 'gif', 'webp'}:
+            return Response({'detail': 'Formato não suportado.'}, status=400)
+
+        if avatar.size > 5 * 1024 * 1024:
+            return Response({'detail': 'Imagem maior que 5 MB.'}, status=400)
+
+        try:
+            result = cloudinary.uploader.upload(
+                avatar,
+                folder='avatars',
+                transformation=[{'width': 400, 'height': 400, 'crop': 'fill', 'gravity': 'face'}],
+            )
+            request.user.avatar_url = result['secure_url']
+            request.user.save()
+            return Response({'avatar_url': result['secure_url']})
+        except Exception as e:
+            return Response({'detail': str(e)}, status=502)
 
 
 class UsernameUpdateView(APIView):
