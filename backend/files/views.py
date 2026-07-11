@@ -54,12 +54,19 @@ class FileDetailView(APIView):
             return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
 
         if request.query_params.get('download') == '1':
+            # Suporta tanto image_url (Cloudinary direto) quanto file (via storage)
             url = file.image_url or ''
+            if not url and file.file:
+                raw = file.file.url
+                url = raw if raw.startswith('http') else request.build_absolute_uri(raw)
             if not url:
                 return Response({'detail': 'Sem arquivo.'}, status=404)
             try:
                 r = http_requests.get(url, timeout=30)
-                return HttpResponse(r.content, content_type=r.headers.get('Content-Type', 'application/octet-stream'))
+                return HttpResponse(
+                    r.content,
+                    content_type=r.headers.get('Content-Type', 'application/octet-stream'),
+                )
             except Exception as e:
                 return Response({'detail': str(e)}, status=502)
 

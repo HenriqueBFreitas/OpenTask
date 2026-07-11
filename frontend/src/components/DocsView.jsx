@@ -24,11 +24,6 @@ async function refreshAccessToken() {
   } catch { return null; }
 }
 
-// ─── Fetch autenticado → Blob URL ─────────────────────────────────────────────
-// Retorna { blobUrl, error } — nunca lança exceção
-// fetchBlobUrl: baixa um arquivo como blob.
-// - URLs do próprio backend → Authorization: Bearer token
-// - URLs externas (Cloudinary etc) → tenta direto; se 401/403 usa proxy backend (?download=1)
 async function fetchBlobUrl(rawUrl, fileId = null) {
   try {
     if (!rawUrl) return { blobUrl: null, error: 'no url' };
@@ -46,7 +41,19 @@ async function fetchBlobUrl(rawUrl, fileId = null) {
       catch { return false; }
     })();
 
+    const isCloudinary = fullUrl.includes('res.cloudinary.com');
     const token = getToken();
+
+    // Arquivos Cloudinary raw têm acesso restrito — usa proxy direto
+    if (!isInternal && isCloudinary && fileId) {
+      const proxyUrl = `${API}/files/${fileId}/?download=1`;
+      const res = await fetch(proxyUrl, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (res.ok) {
+        const blob = await res.blob();
+        return { blobUrl: URL.createObjectURL(blob), error: null };
+      }
+      return { blobUrl: null, error: `HTTP ${res.status}` };
+    }
 
     // 1. Tenta direto
     let res = await fetch(fullUrl, {
@@ -59,8 +66,8 @@ async function fetchBlobUrl(rawUrl, fileId = null) {
       if (newToken) res = await fetch(fullUrl, { headers: { Authorization: `Bearer ${newToken}` } });
     }
 
-    // 2. URL externa com 401/403 → proxy pelo backend
-    if (!isInternal && (res.status === 401 || res.status === 403) && fileId) {
+    // 2. Fallback para proxy
+    if (!res.ok && fileId) {
       const proxyUrl = `${API}/files/${fileId}/?download=1`;
       const t = getToken() || '';
       res = await fetch(proxyUrl, { headers: t ? { Authorization: `Bearer ${t}` } : {} });
