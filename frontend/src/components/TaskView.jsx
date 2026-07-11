@@ -679,8 +679,14 @@ function TaskCard({
                   lineHeight: 1.4,
                   cursor: isCompletedView ? 'default' : 'text',
                   flex: 1,
+                  minWidth: 0,
                   textDecoration: isCompletedView ? 'line-through' : 'none',
                   textDecorationColor: '#a0c8a2',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  wordBreak: 'break-word',
                 }}
               >
                 {task.title}
@@ -814,8 +820,14 @@ function TaskCard({
                   <span
                     style={{
                       fontSize: 12, flex: 1,
+                      minWidth: 0,
                       color: sub.completed ? '#a09d97' : '#2c2a26',
                       textDecoration: sub.completed ? 'line-through' : 'none',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      wordBreak: 'break-word',
                     }}
                   >
                     {sub.title}
