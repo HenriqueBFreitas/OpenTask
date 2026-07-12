@@ -18,8 +18,10 @@ from .serializers import (
 import requests
 import cloudinary.uploader
 
+
 class LoginView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
+
 
 class CheckUsernameView(APIView):
     permission_classes = [AllowAny]
@@ -35,6 +37,7 @@ class CheckUsernameView(APIView):
 
         exists = CustomUser.objects.filter(username=username).exists()
         return Response({'exists': exists})
+
 
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
@@ -136,6 +139,7 @@ class GoogleLoginView(APIView):
             'refresh': str(refresh),
         })
 
+
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -197,7 +201,6 @@ class AvatarUploadView(APIView):
 
 
 class UsernameUpdateView(APIView):
-
     permission_classes = [IsAuthenticated]
 
     def patch(self, request):

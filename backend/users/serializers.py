@@ -47,6 +47,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.username_set = True
         user.save()
         return user
+    
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(required=False, max_length=255)
+
+    class Meta:
+        model = CustomUser
+        fields = ['full_name']
+
+    def update(self, instance, validated_data):
+        instance.full_name = validated_data.get('full_name', instance.full_name)
+        instance.save()
+        return instance
 
 class UsernameUpdateSerializer(serializers.ModelSerializer):
     username = serializers.CharField(required=True, min_length=3, max_length=150)
