@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [active, setActive] = useState('whiteboard');
   const [collapsed, setCollapsed] = useState(false);
   const [username, setUsername] = useState('');
+  const [avatar, setAvatar] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('access_token');
@@ -54,7 +55,10 @@ export default function Dashboard() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then(data => setUsername(data.username || data.email || ''))
+      .then(data => {
+        setUsername(data.username || data.email || '');
+        setAvatar(data.avatar || null);
+      })
       .catch(() => {});
   }, []);
 
@@ -117,10 +121,16 @@ export default function Dashboard() {
         }}>
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
-            background: '#2c2a26', color: '#fff',
+            background: avatar ? 'none' : '#2c2a26', color: '#fff',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12, fontWeight: 700, flexShrink: 0,
-          }}>{initial}</div>
+            overflow: 'hidden',
+          }}>
+            {avatar
+              ? <img src={avatar} alt={username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : initial
+            }
+          </div>
           {!collapsed && (
             <div style={{ overflow: 'hidden' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#2c2a26', whiteSpace: 'nowrap' }}>{username || '...'}</div>
@@ -146,7 +156,7 @@ export default function Dashboard() {
           {active === 'tasks'      && <TasksView />}
           {active === 'docs'       && <DocsView/>}
           {active === 'members'    && <TeamsView />}
-          {active === 'settings'   && <SettingsView />}
+          {active === 'settings'   && <SettingsView onAvatarUpdate={setAvatar} />}
         </div>
       </main>
     </div>

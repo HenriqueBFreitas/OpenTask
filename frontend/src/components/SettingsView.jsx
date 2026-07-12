@@ -97,8 +97,7 @@ function ErrorMsg({ msg }) {
 }
 
 // ─── SettingsView ─────────────────────────────────────────────────────────────
-
-export default function SettingsView() {
+export default function SettingsView({ onAvatarUpdate }) {
   const avatarInputRef = useRef(null);
 
   const [profile, setProfile]   = useState(null);
@@ -213,6 +212,7 @@ export default function SettingsView() {
       const data = await safeJson(res);
       if (!res.ok) throw new Error(data.detail || `Erro ${res.status}`);
       setProfile(p => ({ ...p, avatar: data.avatar_url }));
+      onAvatarUpdate?.(data.avatar_url);
       setAvatarFile(null);
       setSavedAvatar(true);
       setTimeout(() => setSavedAvatar(false), 2500);
