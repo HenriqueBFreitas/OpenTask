@@ -803,25 +803,25 @@ function CreateTeamModal({ onClose, onCreate }) {
 }
 
 // ─── Modal convidar membro ────────────────────────────────────────────────
-
 function InviteMemberModal({ group, onClose, onInvited }) {
   const [query, setQuery] = useState('');
-  const [found, setFound] = useState(null);
+  const [results, setResults] = useState([]); // agora é uma lista, não só 1
   const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [invitingId, setInvitingId] = useState(null);
 
   const search = async () => {
     if (!query.trim()) return;
-    setSearching(true); setFound(null); setError('');
+    setSearching(true); setResults([]); setError('');
     try {
       const res = await fetch(`${API}/users/search/?q=${encodeURIComponent(query.trim())}`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Usuário não encontrado');
+      if (!res.ok) throw new Error('Erro ao buscar usuários');
       const data = await res.json();
-      const user = Array.isArray(data) ? data[0] : data;
-      if (!user) throw new Error('Nenhum usuário encontrado');
-      setFound(user);
+      const list = Array.isArray(data) ? data : (Array.isArray(data.results) ? data.results : []);
+      if (!list.length) { setError('Nenhum usuário encontrado'); return; }
+      setResults(list);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -829,22 +829,21 @@ function InviteMemberModal({ group, onClose, onInvited }) {
     }
   };
 
-  const invite = async () => {
-    if (!found) return;
-    setLoading(true); setError('');
+  const invite = async (user) => {
+    setInvitingId(user.id); setError('');
     try {
       const res = await fetch(`${API}/groups/${group.id}/invites/`, {
         method: 'POST', headers: getAuthHeaders(),
-        body: JSON.stringify({ invited_user: found.id }),
+        body: JSON.stringify({ invited_user: user.id }),
       });
       if (!res.ok) throw new Error('Erro ao enviar convite');
-      setSuccess(`Convite enviado para ${found.username || found.email}!`);
-      setFound(null); setQuery('');
+      setSuccess(`Convite enviado para ${user.username || user.email}!`);
+      setResults((prev) => prev.filter((u) => u.id !== user.id));
       onInvited && onInvited();
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setInvitingId(null);
     }
   };
 
@@ -864,19 +863,23 @@ function InviteMemberModal({ group, onClose, onInvited }) {
         <PrimaryBtn onClick={search} loading={searching} small>Buscar</PrimaryBtn>
       </div>
 
-      {found && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#faf9f7', borderRadius: 12, padding: '12px 14px', border: '1.5px solid #e2ddd6' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: '#e8e4de', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {found.avatar_url
-              ? <img src={found.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={{ fontSize: 14, fontWeight: 700, color: '#7a7570' }}>{(found.username || found.email || '?')[0].toUpperCase()}</span>
-            }
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814' }}>{found.full_name || found.username}</p>
-            <p style={{ margin: 0, fontSize: 12, color: '#a09d97' }}>{found.email}</p>
-          </div>
-          <PrimaryBtn onClick={invite} loading={loading} small>Convidar</PrimaryBtn>
+      {results.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
+          {results.map((user) => (
+            <div key={user.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#faf9f7', borderRadius: 12, padding: '12px 14px', border: '1.5px solid #e2ddd6' }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', background: '#e8e4de', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {user.avatar_url
+                  ? <img src={user.avatar_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 14, fontWeight: 700, color: '#7a7570' }}>{(user.username || user.email || '?')[0].toUpperCase()}</span>
+                }
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.full_name || user.username}</p>
+                <p style={{ margin: 0, fontSize: 12, color: '#a09d97', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</p>
+              </div>
+              <PrimaryBtn onClick={() => invite(user)} loading={invitingId === user.id} small>Convidar</PrimaryBtn>
+            </div>
+          ))}
         </div>
       )}
 
