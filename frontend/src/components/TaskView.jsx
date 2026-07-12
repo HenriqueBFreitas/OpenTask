@@ -525,6 +525,8 @@ function TaskCard({
   const [expanded, setExpanded] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(task.title);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [description, setDescription] = useState(task.description || '');
   const [newSub, setNewSub] = useState('');
   const [addingSub, setAddingSub] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -532,6 +534,22 @@ function TaskCard({
   const saveTitle = async () => {
     setEditingTitle(false);
     if (title.trim() && title !== task.title) await onUpdate(task.id, { title });
+  };
+
+  const startEditingDescription = () => {
+    if (isCompletedView) return;
+    setDescription(task.description || '');
+    setEditingDescription(true);
+  };
+
+  const saveDescription = async () => {
+    setEditingDescription(false);
+    if (description !== (task.description || '')) await onUpdate(task.id, { description });
+  };
+
+  const cancelEditingDescription = () => {
+    setDescription(task.description || '');
+    setEditingDescription(false);
   };
 
   const handleAddSub = async () => {
@@ -695,18 +713,66 @@ function TaskCard({
           </div>
 
           {/* Description */}
-          {task.description && (
+          {editingDescription && !isCompletedView ? (
+            <textarea
+              value={description}
+              autoFocus
+              rows={3}
+              placeholder="Adicionar descrição..."
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={saveDescription}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelEditingDescription();
+                } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                fontSize: 12, color: '#1a1814', lineHeight: 1.5,
+                marginTop: 4, marginBottom: 4,
+                paddingTop: 6, paddingBottom: 6, paddingRight: 8,
+                paddingLeft: isCompletedView ? 8 : 21,
+                border: '1.5px solid #2c2a26', borderRadius: 7,
+                fontFamily: 'inherit', outline: 'none', resize: 'vertical',
+                background: '#faf9f7',
+              }}
+            />
+          ) : task.description ? (
             <div
+              onDoubleClick={startEditingDescription}
+              title={!isCompletedView ? 'Clique duas vezes para editar' : undefined}
               style={{
                 fontSize: 12, color: '#7a7570', lineHeight: 1.5,
                 marginTop: 4, marginBottom: 4,
                 display: '-webkit-box', WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical', overflow: 'hidden',
                 paddingLeft: isCompletedView ? 0 : 21,
+                cursor: isCompletedView ? 'default' : 'text',
+                wordBreak: 'break-word',
               }}
             >
               {task.description}
             </div>
+          ) : (
+            !isCompletedView && (
+              <div
+                onDoubleClick={startEditingDescription}
+                title="Clique duas vezes para editar"
+                style={{
+                  fontSize: 12, color: '#b5b1a9', lineHeight: 1.5,
+                  marginTop: 4, marginBottom: 4,
+                  paddingLeft: 21, cursor: 'text', fontStyle: 'italic',
+                }}
+              >
+                + Adicionar descrição
+              </div>
+            )
           )}
 
           {/* Status toggle */}
@@ -1324,7 +1390,7 @@ export default function TasksView() {
 
   const addSubtask = async (taskId, title) => {
     try {
-      const res = await fetch(`${API}/subtasks/`, {
+      const res = await fetch(`${API}/tasks/subtasks/`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ task: taskId, title, completed: false }),
@@ -1351,7 +1417,7 @@ export default function TasksView() {
       }))
     );
     try {
-      const res = await fetch(`${API}/subtasks/${sub.id}/`, {
+      const res = await fetch(`${API}/tasks/subtasks/${sub.id}/`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ completed: !sub.completed }),
