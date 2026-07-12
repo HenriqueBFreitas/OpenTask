@@ -1351,7 +1351,7 @@ export default function TasksView() {
       }))
     );
     try {
-      const res = await fetch(`${API}/tasks/subtasks/${sub.id}/`, {
+      const res = await fetch(`${API}/subtasks/${sub.id}/`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ completed: !sub.completed }),

@@ -23,6 +23,7 @@ const ExcalidrawWrapper = dynamic(
 const NAV = [
   { id: 'whiteboard', icon: '', label: 'Quadro' },
   { id: 'tasks',      icon: '',  label: 'Tarefas' },
+  { id: 'docs',      icon: '',  label: 'Docs' },
   { id: 'members',    icon: '', label: 'Equipe' },
   { id: 'settings',   icon: '', label: 'Config' },
 ];
