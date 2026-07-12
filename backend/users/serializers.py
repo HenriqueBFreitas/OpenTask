@@ -88,3 +88,34 @@ class UsernameUpdateSerializer(serializers.ModelSerializer):
 
 class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
     username_field = 'email'
+
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(required=False, max_length=255, allow_blank=True)
+    username  = serializers.CharField(required=False, min_length=3, max_length=150)
+
+    class Meta:
+        model  = CustomUser
+        fields = ['full_name', 'username']
+
+    def validate_username(self, value):
+        import re
+        if not re.match(r'^[\w.@+-]+$', value):
+            raise serializers.ValidationError(
+                "Username pode conter apenas letras, números e os caracteres @/./+/-/_"
+            )
+        qs = CustomUser.objects.filter(username=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Este username já está em uso.")
+        return value
+
+    def update(self, instance, validated_data):
+        if 'username' in validated_data:
+            instance.username     = validated_data['username']
+            instance.username_set = True
+        if 'full_name' in validated_data:
+            instance.full_name = validated_data['full_name']
+        instance.save()
+        return instance

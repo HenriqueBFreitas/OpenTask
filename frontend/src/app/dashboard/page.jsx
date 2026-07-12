@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import TasksView from '@/components/TaskView';
 import DocsView from '@/components/DocsView';
 import TeamsView from '@/components/TeamsView';
+import SettingsView from '@/components/SettingsView';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
@@ -22,7 +23,7 @@ const ExcalidrawWrapper = dynamic(
 const NAV = [
   { id: 'whiteboard', icon: '', label: 'Quadro' },
   { id: 'tasks',      icon: '',  label: 'Tarefas' },
-  { id: 'docs',       icon: '', label: 'Docs' },
+  { id: 'docs',      icon: '',  label: 'Docs' },
   { id: 'members',    icon: '', label: 'Equipe' },
   { id: 'settings',   icon: '', label: 'Config' },
 ];
@@ -143,9 +144,9 @@ export default function Dashboard() {
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', minHeight: 0 }}>
           {active === 'whiteboard' && <ExcalidrawWrapper />}
           {active === 'tasks'      && <TasksView />}
-          {active === 'docs'       && <DocsView />}
+          {active === 'docs'       && <DocsView/>}
           {active === 'members'    && <TeamsView />}
-          {active === 'settings'   && <PlaceholderView label="Configurações" icon="" />}
+          {active === 'settings'   && <SettingsView />}
         </div>
       </main>
     </div>
