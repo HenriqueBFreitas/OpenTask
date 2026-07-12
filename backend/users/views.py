@@ -10,6 +10,8 @@ from .utils import generate_unique_username
 from .models import CustomUser
 from .serializers import RegisterSerializer, EmailTokenObtainPairSerializer, UsernameUpdateSerializer
 import requests
+import cloudinary.uploader
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class LoginView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
@@ -160,3 +162,17 @@ class UsernameUpdateView(APIView):
                 'username_set': user.username_set,
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class AvatarUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        file = request.FILES.get('photo')
+        if not file:
+            return Response({'error': 'Nenhuma imagem enviada. Use o campo "photo".'}, status=400)
+
+        result = cloudinary.uploader.upload(file, folder='users/avatars')
+        request.user.avatar_url = result['secure_url']
+        request.user.save(update_fields=['avatar_url'])
+        return Response({'avatar_url': request.user.avatar_url})

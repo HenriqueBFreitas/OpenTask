@@ -7,6 +7,7 @@ from .views import (
     CheckUsernameView,
     MeView,
     UsernameUpdateView,
+    AvatarUploadView,
 )
 
 app_name = 'users'
@@ -21,4 +22,5 @@ urlpatterns = [
     path('check-username/', CheckUsernameView.as_view(), name='check_username'),
     path('me/', MeView.as_view(), name='me'),
     path('me/username/', UsernameUpdateView.as_view(), name='update_username'),
+    path('me/avatar/', AvatarUploadView.as_view(), name='update_avatar'),
 ]
