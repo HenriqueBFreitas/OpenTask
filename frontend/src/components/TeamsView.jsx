@@ -1247,7 +1247,7 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                       </div>
                       <span style={{ fontSize: 13, color: '#a09d97', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail}</span>
                       <button
-                        onClick={() => canTogglePapel && toggleRole(userId, m.role)}
+                        onClick={() => { if (canTogglePapel) toggleRole(userId, m.role); }}
                         disabled={!canTogglePapel}
                         style={{
                           background: rowIsOwner ? '#fffbeb' : rowIsAdmin ? color.bg : '#f0ede8',

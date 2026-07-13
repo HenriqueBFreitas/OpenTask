@@ -114,11 +114,23 @@ export default function Dashboard() {
           ))}
         </nav>
 
-        <div style={{
-          borderTop: '1px solid #e8e5e0',
-          padding: collapsed ? '12px 14px' : '12px 18px',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
+        <button
+          onClick={() => setActive('settings')}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#f7f5f0'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          style={{
+            width: '100%',
+            borderTop: '1px solid #e8e5e0',
+            padding: collapsed ? '12px 14px' : '12px 18px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'transparent',
+            border: 'none',
+            borderTop: '1px solid #e8e5e0',
+            cursor: 'pointer',
+            transition: 'background 0.15s',
+          }}
+          title="Ir para Configurações"
+        >
           <div style={{
             width: 28, height: 28, borderRadius: '50%',
             background: avatar ? 'none' : '#2c2a26', color: '#fff',
@@ -132,12 +144,12 @@ export default function Dashboard() {
             }
           </div>
           {!collapsed && (
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#2c2a26', whiteSpace: 'nowrap' }}>{username || '...'}</div>
+            <div style={{ overflow: 'hidden', flex: 1, textAlign: 'left' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#2c2a26', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{username || '...'}</div>
               <div style={{ fontSize: 11, color: '#a09d97', whiteSpace: 'nowrap' }}>Pessoal</div>
             </div>
           )}
-        </div>
+        </button>
       </aside>
 
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
