@@ -37,9 +37,13 @@ class GroupSerializer(serializers.ModelSerializer):
 
 
 class GroupInviteSerializer(serializers.ModelSerializer):
+    group_name = serializers.CharField(source='group.name', read_only=True)
+    invited_by_username = serializers.CharField(source='invited_by.username', read_only=True)
+
     class Meta:
         model = GroupInvite
-        fields = ['id', 'group', 'invited_by', 'invited_user', 'status', 'created_at']
+        fields = ['id', 'group', 'group_name', 'invited_by', 'invited_by_username',
+                  'invited_user', 'status', 'created_at']
         read_only_fields = ['id', 'invited_by', 'status', 'created_at']
 
 
@@ -69,11 +73,20 @@ class GroupFileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = GroupFile
-        fields = ['id', 'file_id', 'original_name', 'size', 'file_url', 'uploaded_by', 'uploaded_by_username', 'uploaded_by_full_name', 'attached_at']
+        fields = ['id', 'file_id', 'original_name', 'size', 'file_url', 'uploaded_by',
+                  'uploaded_by_username', 'uploaded_by_full_name', 'attached_at']
         read_only_fields = fields
 
     def get_file_url(self, obj):
-        request = self.context.get('request')
-        if request and obj.file.file:
-            return request.build_absolute_uri(obj.file.file.url)
+        # Prioridade: Cloudinary (image_url) → arquivo local (file)
+        if obj.file.image_url:
+            return obj.file.image_url
+        if obj.file.file:
+            raw = obj.file.file.url
+            # Se o storage já retornou URL absoluta (Cloudinary), usa direto
+            if raw.startswith('http'):
+                return raw
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(raw)
         return None

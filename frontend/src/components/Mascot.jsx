@@ -67,20 +67,18 @@ const STYLES = `
 
 const NOTIFICATION_TYPES = {
   friend: {
-    color: '#7c3aed',
-    lightColor: '#f3f0ff',
-    icon: '👋',
-    label: 'Friend Request',
-    accept: 'Accept',
-    decline: 'Decline',
+    accent: '#8b5cf6',
+    accentBg: '#f5f3ff',
+    label: 'Pedido de amizade',
+    accept: 'Aceitar',
+    decline: 'Recusar',
   },
   group: {
-    color: '#0284c7',
-    lightColor: '#f0f9ff',
-    icon: '👥',
-    label: 'Group Invite',
-    accept: 'Join',
-    decline: 'Ignore',
+    accent: '#0ea5e9',
+    accentBg: '#f0f9ff',
+    label: 'Convite de equipe',
+    accept: 'Entrar',
+    decline: 'Recusar',
   },
 };
 
@@ -123,7 +121,7 @@ export default function Mascot() {
           list.forEach(r => incoming.push({
             id:      `friend-${r.id}`,
             type:    'friend',
-            message: `${r.from_user?.username ?? 'Someone'} wants to be your friend`,
+            message: `${r.from_user?.username ?? 'Alguém'} quer ser seu amigo`,
             payload: r,
           }));
         }
@@ -134,7 +132,7 @@ export default function Mascot() {
           list.forEach(r => incoming.push({
             id:      `group-${r.id}`,
             type:    'group',
-            message: `You were invited to "${r.group?.name ?? 'a group'}"`,
+            message: `${r.invited_by_username ?? 'Alguém'} te convidou para "${r.group_name ?? 'um grupo'}"`,
             payload: r,
           }));
         }
@@ -145,6 +143,8 @@ export default function Mascot() {
             const newItems = incoming.filter(n => !existingIds.has(n.id));
             return [...prev, ...newItems];
           });
+        } else {
+          setQueue([]);
         }
       } catch (_) {}
     };
@@ -194,17 +194,21 @@ export default function Mascot() {
   const respond = async (accept) => {
     if (!current) return;
     const token = getToken();
-    const action = accept ? 'accept' : 'reject';
     try {
       if (current.type === 'friend') {
+        const action = accept ? 'accept' : 'reject';
         await fetch(`${API}/friends/requests/${current.payload.id}/${action}/`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         });
       } else {
-        await fetch(`${API}/groups/invites/${current.payload.id}/${action}/`, {
+        await fetch(`${API}/groups/invites/${current.payload.id}/respond/`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: accept ? 'accept' : 'decline' }),
         });
       }
     } catch (_) {}
@@ -233,7 +237,7 @@ export default function Mascot() {
       bottom: 24,
       right: 60,
       zIndex: 9990,
-      display: 'flex',
+      display: hasPending ? 'flex' : 'none',
       flexDirection: 'column',
       alignItems: 'center',
       pointerEvents: 'none',
@@ -247,30 +251,27 @@ export default function Mascot() {
           style={{
             animation: `bubble-${bubbleAnim} 0.22s cubic-bezier(.36,.07,.19,.97) forwards`,
             background: '#ffffff',
-            border: `2px solid ${config.color}`,
-            borderRadius: 16,
-            padding: '13px 15px 12px',
+            border: '1.5px solid #e8e4de',
+            borderRadius: 18,
+            padding: '16px 18px 16px',
             marginBottom: 12,
-            width: 230,
-            boxShadow: `0 12px 40px rgba(0,0,0,0.13), 0 0 0 4px ${config.color}18`,
+            width: 240,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.10)',
             pointerEvents: 'all',
             position: 'relative',
             fontFamily: 'inherit',
           }}
         >
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
             <div style={{
-              width: 28, height: 28, borderRadius: 8,
-              background: config.lightColor,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, flexShrink: 0,
-            }}>
-              {config.icon}
-            </div>
+              width: 8, height: 8, borderRadius: '50%',
+              background: config.accent,
+              flexShrink: 0,
+            }} />
             <span style={{
-              fontSize: 11, fontWeight: 700, color: config.color,
-              letterSpacing: 0.4, textTransform: 'uppercase',
+              fontSize: 11, fontWeight: 700, color: '#a09d97',
+              letterSpacing: 0.5, textTransform: 'uppercase',
             }}>
               {config.label}
             </span>
@@ -278,8 +279,8 @@ export default function Mascot() {
               <span style={{
                 marginLeft: 'auto',
                 fontSize: 10, fontWeight: 700,
-                background: config.color, color: '#fff',
-                borderRadius: 99, padding: '2px 7px',
+                background: '#f0ede8', color: '#6b6760',
+                borderRadius: 99, padding: '2px 8px',
               }}>
                 +{queue.length - 1}
               </span>
@@ -288,8 +289,8 @@ export default function Mascot() {
 
           {/* Message */}
           <p style={{
-            fontSize: 12.5, color: '#1a1a1a',
-            lineHeight: 1.5, margin: '0 0 12px',
+            fontSize: 13, color: '#1a1814',
+            lineHeight: 1.5, margin: '0 0 14px', fontWeight: 500,
           }}>
             {current.message}
           </p>
@@ -299,29 +300,30 @@ export default function Mascot() {
             <button
               onClick={() => respond(true)}
               style={{
-                flex: 1, padding: '8px 0', borderRadius: 9,
-                border: 'none', background: config.color,
-                color: '#fff', fontSize: 12.5, fontWeight: 700,
+                flex: 1, padding: '9px 0', borderRadius: 10,
+                border: 'none', background: '#2c2a26',
+                color: '#fff', fontSize: 13, fontWeight: 700,
                 cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'filter 0.15s',
+                transition: 'opacity 0.15s',
+                boxShadow: '0 2px 8px rgba(44,42,38,0.15)',
               }}
-              onMouseEnter={e => e.target.style.filter = 'brightness(1.12)'}
-              onMouseLeave={e => e.target.style.filter = 'brightness(1)'}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
             >
               {config.accept}
             </button>
             <button
               onClick={() => respond(false)}
               style={{
-                flex: 1, padding: '8px 0', borderRadius: 9,
-                border: `1.5px solid ${config.color}`,
-                background: 'transparent',
-                color: config.color, fontSize: 12.5, fontWeight: 600,
+                flex: 1, padding: '9px 0', borderRadius: 10,
+                border: 'none',
+                background: '#f0ede8',
+                color: '#6b6760', fontSize: 13, fontWeight: 600,
                 cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'background 0.15s',
               }}
-              onMouseEnter={e => e.target.style.background = config.lightColor}
-              onMouseLeave={e => e.target.style.background = 'transparent'}
+              onMouseEnter={e => e.currentTarget.style.background = '#e8e4de'}
+              onMouseLeave={e => e.currentTarget.style.background = '#f0ede8'}
             >
               {config.decline}
             </button>
@@ -329,18 +331,18 @@ export default function Mascot() {
 
           {/* Bubble tail */}
           <div style={{
-            position: 'absolute', bottom: -10, right: 28,
+            position: 'absolute', bottom: -9, right: 30,
             width: 0, height: 0,
-            borderLeft: '10px solid transparent',
-            borderRight: '10px solid transparent',
-            borderTop: `10px solid ${config.color}`,
+            borderLeft: '9px solid transparent',
+            borderRight: '9px solid transparent',
+            borderTop: '9px solid #e8e4de',
           }} />
           <div style={{
-            position: 'absolute', bottom: -7, right: 30,
+            position: 'absolute', bottom: -6.5, right: 32,
             width: 0, height: 0,
-            borderLeft: '8px solid transparent',
-            borderRight: '8px solid transparent',
-            borderTop: '8px solid #fff',
+            borderLeft: '7px solid transparent',
+            borderRight: '7px solid transparent',
+            borderTop: '7px solid #fff',
           }} />
         </div>
       )}
