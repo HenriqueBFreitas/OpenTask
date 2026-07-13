@@ -18,10 +18,8 @@ from .serializers import (
 import requests
 import cloudinary.uploader
 
-
 class LoginView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
-
 
 class CheckUsernameView(APIView):
     permission_classes = [AllowAny]
@@ -38,12 +36,10 @@ class CheckUsernameView(APIView):
         exists = CustomUser.objects.filter(username=username).exists()
         return Response({'exists': exists})
 
-
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
-
 
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
@@ -55,6 +51,12 @@ class GoogleLoginView(APIView):
             return Response(
                 {'error': 'Token não enviado'},
                 status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not settings.GOOGLE_CLIENT_ID:
+            return Response(
+                {'error': 'Configuração do Google OAuth ausente no servidor'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
         try:
@@ -83,7 +85,8 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if data.get('email_verified') != 'true':
+        email_verified = data.get('email_verified')
+        if email_verified not in ('true', True):
             return Response(
                 {'error': 'Email não verificado'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -140,7 +143,6 @@ class GoogleLoginView(APIView):
             'refresh': str(refresh),
         })
 
-
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -171,7 +173,6 @@ class MeView(APIView):
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class AvatarUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes     = [MultiPartParser, FormParser]
@@ -199,7 +200,6 @@ class AvatarUploadView(APIView):
             return Response({'avatar_url': result['secure_url']})
         except Exception as e:
             return Response({'detail': str(e)}, status=502)
-
 
 class UsernameUpdateView(APIView):
     permission_classes = [IsAuthenticated]
