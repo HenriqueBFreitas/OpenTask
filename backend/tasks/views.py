@@ -8,6 +8,20 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
 
+def _extract_cloudinary_public_id(url):
+    """Extrai o public_id de uma URL do Cloudinary para uso no destroy."""
+    try:
+        parts = url.split('/upload/')
+        if len(parts) != 2:
+            return None
+        path = parts[1]
+        if path.startswith('v') and '/' in path:
+            path = path.split('/', 1)[1]
+        public_id = path.rsplit('.', 1)[0]
+        return public_id
+    except Exception:
+        return None
+
 from .models import Task, SubTask, TaskImage, Board
 from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
 
@@ -53,10 +67,45 @@ class TaskViewSet(ModelViewSet):
             return Response({"error": "Nenhuma imagem enviada"}, status=400)
         created = []
         for file in files:
-            result = cloudinary.uploader.upload(file)
+            result = cloudinary.uploader.upload(file, folder='tasks/images')
             img = TaskImage.objects.create(task=task, image_url=result["secure_url"])
             created.append(TaskImageSerializer(img, context={'request': request}).data)
         return Response(created, status=status.HTTP_201_CREATED)
+
+    @action(
+        detail=True,
+        methods=['delete'],
+        url_path='remove-image',
+    )
+    def remove_image(self, request, pk=None):
+        """
+        DELETE /api/tasks/<id>/remove-image/
+        Remove todas as imagens da task e as apaga do Cloudinary.
+        Opcionalmente aceita ?image_id=<id> para remover apenas uma imagem específica.
+        """
+        task = self.get_object()
+        image_id = request.query_params.get('image_id')
+
+        if image_id:
+            try:
+                img = TaskImage.objects.get(pk=image_id, task=task)
+            except TaskImage.DoesNotExist:
+                return Response({'error': 'Imagem não encontrada.'}, status=404)
+            imgs = [img]
+        else:
+            imgs = list(task.images.all())
+
+        for img in imgs:
+            if img.image_url:
+                try:
+                    public_id = _extract_cloudinary_public_id(img.image_url)
+                    if public_id:
+                        cloudinary.uploader.destroy(public_id, resource_type='image')
+                except Exception:
+                    pass
+            img.delete()
+
+        return Response(status=204)
 
 class SubTaskViewSet(ModelViewSet):
     serializer_class = SubTaskSerializer

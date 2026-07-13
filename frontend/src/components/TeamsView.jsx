@@ -1100,6 +1100,13 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
     onUpdate({ ...team, cover: url, banner_url: url, color, members });
   };
 
+  const removeCover = async () => {
+    await fetch(`${API}/groups/${team.id}/upload-banner/`, {
+      method: 'DELETE', headers: getAuthHeaders(),
+    });
+    onUpdate({ ...team, cover: null, banner_url: null, color, members });
+  };
+
   const changeAvatar = async (e) => {
     const f = e.target.files[0]; if (!f) return;
     const url = await readFile(f);
@@ -1109,6 +1116,13 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
       method: 'POST', headers: getAuthHeadersFormData(), body: fd,
     });
     onUpdate({ ...team, avatar: url, photo_url: url, color, members });
+  };
+
+  const removeAvatar = async () => {
+    await fetch(`${API}/groups/${team.id}/upload-photo/`, {
+      method: 'DELETE', headers: getAuthHeaders(),
+    });
+    onUpdate({ ...team, avatar: null, photo_url: null, color, members });
   };
 
   const coverSrc = team.cover || team.banner_url;
@@ -1125,10 +1139,18 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
           style={{ position: 'absolute', top: 14, left: 16, zIndex: 2, background: coverSrc ? 'rgba(0,0,0,0.38)' : '#ccc9c2', color: coverSrc ? '#fff' : '#5a5550', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
         >← Equipes</button>
         {isOwner && (
-          <button
-            onClick={() => coverRef.current.click()}
-            style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 2, background: coverSrc ? 'rgba(0,0,0,0.38)' : '#ccc9c2', color: coverSrc ? '#fff' : '#7a7570', border: 'none', borderRadius: 8, padding: '6px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-          >{coverSrc ? 'Editar capa' : 'Adicionar capa'}</button>
+          <div style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 2, display: 'flex', gap: 6 }}>
+            <button
+              onClick={() => coverRef.current.click()}
+              style={{ background: coverSrc ? 'rgba(0,0,0,0.38)' : '#ccc9c2', color: coverSrc ? '#fff' : '#7a7570', border: 'none', borderRadius: 8, padding: '6px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            >{coverSrc ? 'Trocar capa' : 'Adicionar capa'}</button>
+            {coverSrc && (
+              <button
+                onClick={removeCover}
+                style={{ background: 'rgba(0,0,0,0.38)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >✕ Remover</button>
+            )}
+          </div>
         )}
         <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={changeCover} />
       </div>
@@ -1152,6 +1174,13 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                 onClick={() => avatarRef.current.click()}
                 style={{ position: 'absolute', bottom: -2, right: -2, background: '#2c2a26', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', cursor: 'pointer', border: '2px solid #f5f3ef' }}
               >+</div>
+            )}
+            {isOwner && avatarSrc && (
+              <div
+                onClick={removeAvatar}
+                title="Remover ícone"
+                style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#fff', cursor: 'pointer', border: '2px solid #f5f3ef', fontWeight: 700, lineHeight: 1 }}
+              >✕</div>
             )}
             <input ref={avatarRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={changeAvatar} />
           </div>

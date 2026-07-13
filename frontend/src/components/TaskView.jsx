@@ -534,6 +534,8 @@ function TaskCard({
   onDelete,
   onAddSubtask,
   onToggleSubtask,
+  onUploadImage,
+  onRemoveImage,
   isDragging,
   dragHandleProps,
   viewMode,
@@ -547,6 +549,8 @@ function TaskCard({
   const [newSub, setNewSub] = useState('');
   const [addingSub, setAddingSub] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const imageInputRef = useRef(null);
 
   const saveTitle = async () => {
     setEditingTitle(false);
@@ -575,6 +579,36 @@ function TaskCard({
     await onAddSubtask(task.id, newSub.trim());
     setNewSub('');
     setAddingSub(false);
+  };
+
+  const handleImagePick = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      // If there's already a cover image, remove it first so we don't accumulate
+      const existing = task.images_data?.[0];
+      if (existing) {
+        await onRemoveImage(task.id, existing.id);
+      }
+      await onUploadImage(task.id, file);
+    } catch {
+      // silently ignore — the parent sets error state
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const handleImageRemove = async () => {
+    const existing = task.images_data?.[0];
+    if (!existing) return;
+    setImageUploading(true);
+    try {
+      await onRemoveImage(task.id, existing.id);
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   const taskGroupIds = Array.isArray(task.groups) ? task.groups : [];
@@ -621,13 +655,71 @@ function TaskCard({
           width: viewMode === 'canvas' ? 270 : undefined,
         }}
       >
-        {/* Cover image */}
-        {coverImage && (
-          <img
-            src={coverImage} alt="capa"
-            style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block', flexShrink: 0 }}
-          />
+        {/* Cover image — with change/remove controls on hover (non-completed tasks only) */}
+        {coverImage ? (
+          <div
+            style={{ position: 'relative', flexShrink: 0 }}
+            onMouseEnter={(e) => {
+              if (!isCompletedView) e.currentTarget.querySelector('.cover-actions').style.opacity = '1';
+            }}
+            onMouseLeave={(e) => {
+              if (!isCompletedView) e.currentTarget.querySelector('.cover-actions').style.opacity = '0';
+            }}
+          >
+            <img
+              src={coverImage} alt="capa"
+              style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }}
+            />
+            {!isCompletedView && (
+              <div
+                className="cover-actions"
+                style={{
+                  position: 'absolute', bottom: 6, right: 6,
+                  display: 'flex', gap: 5, opacity: 0, transition: 'opacity 0.15s',
+                }}
+              >
+                <button
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={imageUploading}
+                  style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  {imageUploading ? '…' : 'Trocar'}
+                </button>
+                <button
+                  onClick={handleImageRemove}
+                  disabled={imageUploading}
+                  style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          !isCompletedView && !task._pending && (
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              disabled={imageUploading}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
+              style={{
+                display: 'block', width: '100%', background: 'none', border: 'none',
+                cursor: 'pointer', padding: '6px 0 2px',
+                fontSize: 11, color: '#c5c2bc', fontFamily: 'inherit', fontWeight: 500,
+                opacity: 0.4, transition: 'opacity 0.15s', textAlign: 'center',
+              }}
+            >
+              {imageUploading ? 'Enviando…' : '＋ Adicionar imagem de capa'}
+            </button>
+          )
         )}
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleImagePick}
+        />
 
         {/* Completed banner */}
         {isCompletedView && (
@@ -1017,7 +1109,7 @@ function TaskCard({
 
 // ─── Canvas Task Card ─────────────────────────────────────────────────────────
 
-function CanvasTaskCard({ task, groups, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onPositionChange, zoom }) {
+function CanvasTaskCard({ task, groups, onUpdate, onDelete, onAddSubtask, onToggleSubtask, onUploadImage, onRemoveImage, onPositionChange, zoom }) {
   const cardRef = useRef(null);
   const dragOffset = useRef({ x: 0, y: 0 });
   const pos = useRef({ x: task._x, y: task._y });
@@ -1078,6 +1170,8 @@ function CanvasTaskCard({ task, groups, onUpdate, onDelete, onAddSubtask, onTogg
         onDelete={onDelete}
         onAddSubtask={onAddSubtask}
         onToggleSubtask={onToggleSubtask}
+        onUploadImage={onUploadImage}
+        onRemoveImage={onRemoveImage}
         isDragging={dragging}
         dragHandleProps={{}}
         viewMode="canvas"
@@ -1519,12 +1613,54 @@ const toggleSubtask = async (sub) => {
 
   // ── Shared card props ───────────────────────────────────────────────────────
 
+  // ── Image helpers ───────────────────────────────────────────────────────────
+
+  const uploadTaskImage = async (taskId, file) => {
+    const fd = new FormData();
+    fd.append('images', file);
+    const res = await fetch(`${API}/tasks/${taskId}/upload-images/`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+      body: fd,
+    });
+    if (!res.ok) throw new Error('Erro ao enviar imagem');
+    const created = await res.json(); // array of TaskImage
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, images_data: created }  // replace: a task tem sempre 0-1 imagem de capa
+          : t
+      )
+    );
+  };
+
+  const removeTaskImage = async (taskId, imageId) => {
+    const url = imageId
+      ? `${API}/tasks/${taskId}/remove-image/?image_id=${imageId}`
+      : `${API}/tasks/${taskId}/remove-image/`;
+    await fetch(url, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const remaining = imageId
+          ? (t.images_data || []).filter((img) => img.id !== imageId)
+          : [];
+        return { ...t, images_data: remaining };
+      })
+    );
+  };
+
   const sharedCardProps = {
     groups,
     onUpdate: updateTask,
     onDelete: deleteTask,
     onAddSubtask: addSubtask,
     onToggleSubtask: toggleSubtask,
+    onUploadImage: uploadTaskImage,
+    onRemoveImage: removeTaskImage,
   };
 
   // ── Loading ─────────────────────────────────────────────────────────────────

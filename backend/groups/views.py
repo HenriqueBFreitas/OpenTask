@@ -88,6 +88,23 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
             return Response({'error': 'Apenas o owner pode deletar o grupo.'}, status=403)
         return super().destroy(request, *args, **kwargs)
 
+def _extract_cloudinary_public_id(url):
+    """Extrai o public_id de uma URL do Cloudinary para uso no destroy."""
+    try:
+        # Ex: https://res.cloudinary.com/<cloud>/image/upload/v.../folder/filename.ext
+        parts = url.split('/upload/')
+        if len(parts) != 2:
+            return None
+        # Remove versão (v12345/) se presente, depois remove extensão
+        path = parts[1]
+        if path.startswith('v') and '/' in path:
+            path = path.split('/', 1)[1]
+        public_id = path.rsplit('.', 1)[0]
+        return public_id
+    except Exception:
+        return None
+
+
 class GroupPhotoUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -101,10 +118,37 @@ class GroupPhotoUploadView(APIView):
         if not file:
             return Response({'error': 'Nenhuma imagem enviada. Use o campo "photo".'}, status=400)
 
+        # Remove a foto anterior do Cloudinary antes de enviar a nova
+        if group.photo_url:
+            try:
+                public_id = _extract_cloudinary_public_id(group.photo_url)
+                if public_id:
+                    cloudinary.uploader.destroy(public_id, resource_type='image')
+            except Exception:
+                pass
+
         result = cloudinary.uploader.upload(file, folder='groups/photos')
         group.photo_url = result['secure_url']
         group.save(update_fields=['photo_url'])
         return Response({'photo_url': group.photo_url})
+
+    def delete(self, request, group_id):
+        group = get_object_or_404(Group, pk=group_id)
+        if not is_owner(request.user, group):
+            return Response({'error': 'Apenas o owner pode remover a foto do grupo.'}, status=403)
+
+        if group.photo_url:
+            try:
+                public_id = _extract_cloudinary_public_id(group.photo_url)
+                if public_id:
+                    cloudinary.uploader.destroy(public_id, resource_type='image')
+            except Exception:
+                pass
+
+        group.photo_url = None
+        group.save(update_fields=['photo_url'])
+        return Response(status=204)
+
 
 class GroupBannerUploadView(APIView):
     permission_classes = [IsAuthenticated]
@@ -119,10 +163,36 @@ class GroupBannerUploadView(APIView):
         if not file:
             return Response({'error': 'Nenhuma imagem enviada. Use o campo "banner".'}, status=400)
 
+        # Remove o banner anterior do Cloudinary antes de enviar o novo
+        if group.banner_url:
+            try:
+                public_id = _extract_cloudinary_public_id(group.banner_url)
+                if public_id:
+                    cloudinary.uploader.destroy(public_id, resource_type='image')
+            except Exception:
+                pass
+
         result = cloudinary.uploader.upload(file, folder='groups/banners')
         group.banner_url = result['secure_url']
         group.save(update_fields=['banner_url'])
         return Response({'banner_url': group.banner_url})
+
+    def delete(self, request, group_id):
+        group = get_object_or_404(Group, pk=group_id)
+        if not is_owner(request.user, group):
+            return Response({'error': 'Apenas o owner pode remover o banner do grupo.'}, status=403)
+
+        if group.banner_url:
+            try:
+                public_id = _extract_cloudinary_public_id(group.banner_url)
+                if public_id:
+                    cloudinary.uploader.destroy(public_id, resource_type='image')
+            except Exception:
+                pass
+
+        group.banner_url = None
+        group.save(update_fields=['banner_url'])
+        return Response(status=204)
 
 class SetAdminView(APIView):
     permission_classes = [IsAuthenticated]
