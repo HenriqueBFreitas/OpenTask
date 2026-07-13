@@ -270,7 +270,7 @@ export default function SettingsView({ onAvatarUpdate }) {
               </div>
             </div>
 
-            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" style={{ display: 'none' }} onChange={handleAvatarPick} />
+            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handleAvatarPick} />
 
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, color: '#6b6760', lineHeight: 1.6, marginBottom: 14 }}>
