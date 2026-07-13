@@ -38,7 +38,6 @@ function useFileAsDataURL() {
     });
 }
 
-
 // ─── File helpers ──────────────────────────────────────────────────────────────
 
 const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -94,9 +93,6 @@ async function loadJSZip() {
   return window.JSZip;
 }
 
-// Fetch autenticado → Blob URL
-// groupId + fileId (GroupFile.id) → proxy via /api/groups/<groupId>/files/<fileId>/download/
-// qualquer membro do grupo pode acessar, resolve CORS e permissão
 async function fetchBlobUrl(rawUrl, fileId = null, groupId = null) {
   try {
     if (!rawUrl && !fileId) return { blobUrl: null, error: 'no url' };
@@ -109,7 +105,6 @@ async function fetchBlobUrl(rawUrl, fileId = null, groupId = null) {
       return { blobUrl: null, error: `HTTP ${res.status}` };
     }
 
-    // Fallback sem groupId (uso direto fora de grupos)
     if (!rawUrl) return { blobUrl: null, error: 'no url' };
     const backendBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
     let fullUrl = rawUrl;
@@ -195,7 +190,6 @@ function FileFallback({ kind = 'doc' }) {
   );
 }
 
-// PDF thumbnail (1 página) para o card
 function PdfCardThumb({ url, fileId, groupId }) {
   const canvasRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -210,7 +204,6 @@ function PdfCardThumb({ url, fileId, groupId }) {
         const pdfjsLib = await loadPdfJs();
         if (cancelled) return;
         const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-        // Usa o endpoint de grupo quando disponível (resolve permissão e CORS)
         const proxyUrl = (groupId && fileId)
           ? `${API}/groups/${groupId}/files/${fileId}/download/`
           : url;
@@ -254,7 +247,7 @@ function PdfCardThumb({ url, fileId, groupId }) {
     </div>
   );
 }
-// Thumbnail de card para qualquer tipo de arquivo
+
 function FileCardThumb({ file }) {
   const kind = getFileKind(file.original_name || '');
   const url = file.file_url || file.image_url || file.file || '';
@@ -267,8 +260,6 @@ function FileCardThumb({ file }) {
   if (kind === 'pdf' && url) return <PdfCardThumb url={url} fileId={id} />;
   return <FileFallback kind={kind} />;
 }
-
-// ─── Componentes de preview full (painel lateral) ─────────────────────────────
 
 function CanvasDisplay({ canvas }) {
   const ref = useRef(null);
@@ -284,7 +275,6 @@ function CanvasDisplay({ canvas }) {
   return <div ref={ref} style={{ width: '100%', lineHeight: 0 }} />;
 }
 
-// PDF — todas as páginas
 function PdfPanelPreview({ url, fileId, groupId, onPageCount }) {
   const wrapRef = useRef(null);
   const taskRef = useRef(null);
@@ -354,7 +344,6 @@ function PdfPanelPreview({ url, fileId, groupId, onPageCount }) {
   );
 }
 
-// DOCX preview
 function DocxPreview({ url, fileId, groupId, thumbnail=false }) {
   const [html, setHtml] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -397,7 +386,6 @@ function DocxPreview({ url, fileId, groupId, thumbnail=false }) {
   );
 }
 
-// Slide renderer para PPTX
 function SlideRender({ shapes, bg, mini=false }) {
   const bgColor = bg||'#ffffff';
   const dark = isDarkColor(bgColor);
@@ -414,7 +402,6 @@ function SlideRender({ shapes, bg, mini=false }) {
   );
 }
 
-// PPT preview
 function PptPreview({ url, fileId, groupId, thumbnail=false, onDownload }) {
   const [state, setState] = useState({status:'loading',shapes:[],bg:null,slideCount:0,thumbSrc:null});
   useEffect(() => {
@@ -472,7 +459,6 @@ function PptPreview({ url, fileId, groupId, thumbnail=false, onDownload }) {
   );
 }
 
-// Painel de preview lateral para arquivos do grupo
 function GroupFilePreviewPanel({ file, groupId, onClose }) {
   const [pageCount, setPageCount] = useState(null);
   useEffect(() => { setPageCount(null); }, [file?.id]);
@@ -480,7 +466,7 @@ function GroupFilePreviewPanel({ file, groupId, onClose }) {
 
   const kind = getFileKind(file.original_name || '');
   const url = file.file_url || file.image_url || file.file || '';
-  const fileId = file.id; // GroupFile.id — usado no endpoint /groups/<groupId>/files/<fileId>/download/
+  const fileId = file.id;
   const name = file.original_name || 'arquivo';
   const size = formatSize(file.size);
 
@@ -650,7 +636,39 @@ function CopyLink({ groupId, color }) {
   );
 }
 
+// ─── Modal de confirmação genérico (excluir equipe / expulsar membro) ─────
+
+function ConfirmDeleteModal({ title, message, confirmLabel = 'Excluir', onConfirm, onClose }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await onConfirm();
+    setLoading(false);
+  };
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p style={{ margin: 0, fontSize: 14, color: '#6b6760', lineHeight: 1.6 }}>
+        {message}
+      </p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+        <GhostBtn onClick={onClose}>Cancelar</GhostBtn>
+        <PrimaryBtn
+          onClick={handleConfirm}
+          loading={loading}
+          style={{ background: '#ef4444', boxShadow: '0 2px 8px rgba(239,68,68,0.25)' }}
+        >
+          {confirmLabel}
+        </PrimaryBtn>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Modal criar equipe ────────────────────────────────────────────────────
+
+const DESCRIPTION_MAX_LENGTH = 500;
 
 function CreateTeamModal({ onClose, onCreate }) {
   const [name, setName] = useState('');
@@ -685,6 +703,7 @@ function CreateTeamModal({ onClose, onCreate }) {
       });
       if (!res.ok) throw new Error('Erro ao criar grupo');
       const group = await res.json();
+      // Quem cria o grupo já entra como owner (garantido pelo backend em GroupListCreateView.perform_create)
 
       if (avatarImage) {
         const fd = new FormData();
@@ -713,7 +732,6 @@ function CreateTeamModal({ onClose, onCreate }) {
 
   return (
     <Modal title="Nova equipe" onClose={onClose} wide>
-      {/* Capa */}
       <div>
         <FieldLabel>Capa</FieldLabel>
         <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', height: 120 }}>
@@ -740,7 +758,6 @@ function CreateTeamModal({ onClose, onCreate }) {
         </div>
       </div>
 
-      {/* Ícone + Nome */}
       <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end' }}>
         <div style={{ flexShrink: 0 }}>
           <FieldLabel>Ícone</FieldLabel>
@@ -768,7 +785,6 @@ function CreateTeamModal({ onClose, onCreate }) {
         </div>
       </div>
 
-      {/* Descrição */}
       <div>
         <FieldLabel>Descrição <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></FieldLabel>
         <textarea
@@ -776,13 +792,16 @@ function CreateTeamModal({ onClose, onCreate }) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
+          maxLength={DESCRIPTION_MAX_LENGTH}
           onFocus={(e) => e.target.style.borderColor = '#2c2a26'}
           onBlur={(e) => e.target.style.borderColor = '#e2ddd6'}
-          style={{ width: '100%', border: '1.5px solid #e2ddd6', borderRadius: 10, padding: '10px 13px', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', color: '#1a1814', background: '#faf9f7', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+          style={{ width: '100%', border: '1.5px solid #e2ddd6', borderRadius: 10, padding: '10px 13px', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', color: '#1a1814', background: '#faf9f7', boxSizing: 'border-box', transition: 'border-color 0.15s', wordBreak: 'break-word', overflowWrap: 'break-word' }}
         />
+        <div style={{ marginTop: 4, fontSize: 11, color: '#c5c2bc', textAlign: 'right' }}>
+          {description.length}/{DESCRIPTION_MAX_LENGTH}
+        </div>
       </div>
 
-      {/* Cor */}
       <div>
         <FieldLabel>Cor do tema</FieldLabel>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -803,11 +822,11 @@ function CreateTeamModal({ onClose, onCreate }) {
 }
 
 // ─── Modal convidar membro ────────────────────────────────────────────────
+
 function InviteMemberModal({ group, onClose, onInvited }) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]); // agora é uma lista, não só 1
+  const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [invitingId, setInvitingId] = useState(null);
@@ -892,6 +911,7 @@ function InviteMemberModal({ group, onClose, onInvited }) {
     </Modal>
   );
 }
+
 // ─── Detalhe da equipe ─────────────────────────────────────────────────────
 
 function TeamDetail({ team, onBack, onUpdate, onDelete }) {
@@ -906,6 +926,27 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
   const [filesError, setFilesError] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const fileInputRef = useRef();
+
+  // ── Identificação do usuário atual dentro do grupo (permissões) ──────────
+  const [myEmail, setMyEmail] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [kickTarget, setKickTarget] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/users/me/`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setMyEmail(data.email || null))
+      .catch(() => {});
+  }, []);
+
+  const myMember = members.find(
+    (m) => (m.user_email || m.email) && (m.user_email || m.email) === myEmail
+  );
+  const myRole = myMember?.role || null;
+  const isOwner = myRole === 'owner';
+  const isAdminOrOwner = myRole === 'admin' || isOwner;
 
   const fetchGroupFiles = useCallback(async () => {
     setFilesLoading(true); setFilesError('');
@@ -924,7 +965,6 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
 
   const uploadGroupFile = async (file) => {
     const token = localStorage.getItem('access_token') || localStorage.getItem('token');
-    // 1. Faz upload do arquivo para /api/files/
     const fd = new FormData();
     fd.append('file', file);
     const res = await fetch(`${API}/files/`, {
@@ -934,7 +974,6 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
     });
     if (!res.ok) throw new Error('Falha no upload');
     const uploaded = await res.json();
-    // 2. Vincula ao grupo via /api/groups/{id}/files/
     const res2 = await fetch(`${API}/groups/${team.id}/files/`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -999,20 +1038,27 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
     if (description !== team.description) patchGroup({ description });
   };
 
+  // Só o owner pode promover/rebaixar admin (backend: SetAdminView exige is_owner)
   const toggleRole = async (userId, currentRole) => {
+    if (!isOwner) return;
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
     try {
-      await fetch(`${API}/groups/${team.id}/members/${userId}/role/`, {
+      const res = await fetch(`${API}/groups/${team.id}/members/${userId}/role/`, {
         method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ role: newRole }),
       });
+      if (!res.ok) throw new Error();
       setMembers((prev) => prev.map((m) => (m.user === userId || m.id === userId) ? { ...m, role: newRole } : m));
     } catch {
       setError('Erro ao alterar papel');
     }
   };
 
-  const kickMember = async (userId) => {
-    if (!confirm('Remover este membro?')) return;
+  // Admins e owner podem expulsar; nunca o owner; admin não expulsa outro admin
+  const requestKick = (member) => setKickTarget(member);
+
+  const kickMember = async () => {
+    if (!kickTarget) return;
+    const userId = kickTarget.user || kickTarget.id;
     try {
       await fetch(`${API}/groups/${team.id}/members/${userId}/kick/`, {
         method: 'DELETE', headers: getAuthHeaders(),
@@ -1020,16 +1066,19 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
       setMembers((prev) => prev.filter((m) => m.user !== userId && m.id !== userId));
     } catch {
       setError('Erro ao remover membro');
+    } finally {
+      setKickTarget(null);
     }
   };
 
   const deleteGroup = async () => {
-    if (!confirm(`Excluir a equipe "${team.name}"? Essa ação não pode ser desfeita.`)) return;
     try {
       await fetch(`${API}/groups/${team.id}/`, { method: 'DELETE', headers: getAuthHeaders() });
       onDelete(team.id);
     } catch {
       setError('Erro ao excluir equipe');
+    } finally {
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -1060,7 +1109,6 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
 
   return (
     <div style={{ width: '100%', height: '100%', overflowY: 'auto', background: '#f5f3ef' }}>
-      {/* Capa */}
       <div style={{ position: 'relative', width: '100%', height: 180, overflow: 'hidden', flexShrink: 0, background: '#e8e4de' }}>
         {coverSrc && (
           <img src={coverSrc} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }} />
@@ -1069,39 +1117,42 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
           onClick={onBack}
           style={{ position: 'absolute', top: 14, left: 16, zIndex: 2, background: coverSrc ? 'rgba(0,0,0,0.38)' : '#ccc9c2', color: coverSrc ? '#fff' : '#5a5550', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
         >← Equipes</button>
-        <button
-          onClick={() => coverRef.current.click()}
-          style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 2, background: coverSrc ? 'rgba(0,0,0,0.38)' : '#ccc9c2', color: coverSrc ? '#fff' : '#7a7570', border: 'none', borderRadius: 8, padding: '6px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-        >{coverSrc ? 'Editar capa' : 'Adicionar capa'}</button>
+        {isOwner && (
+          <button
+            onClick={() => coverRef.current.click()}
+            style={{ position: 'absolute', bottom: 10, right: 14, zIndex: 2, background: coverSrc ? 'rgba(0,0,0,0.38)' : '#ccc9c2', color: coverSrc ? '#fff' : '#7a7570', border: 'none', borderRadius: 8, padding: '6px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          >{coverSrc ? 'Editar capa' : 'Adicionar capa'}</button>
+        )}
         <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={changeCover} />
       </div>
 
-      {/* Header */}
       <div style={{ padding: '0 36px', maxWidth: 960, margin: '0 auto' }}>
         <div style={{ marginTop: -36, marginBottom: 16 }}>
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <div
-              onClick={() => avatarRef.current.click()}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.85'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-              style={{ width: 72, height: 72, borderRadius: 16, background: avatarSrc ? 'none' : color.bg, border: '3px solid #f5f3ef', boxShadow: '0 2px 12px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', transition: 'opacity 0.15s' }}
+              onClick={() => isOwner && avatarRef.current.click()}
+              onMouseEnter={(e) => isOwner && (e.currentTarget.style.opacity = '0.85')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              style={{ width: 72, height: 72, borderRadius: 16, background: avatarSrc ? 'none' : color.bg, border: '3px solid #f5f3ef', boxShadow: '0 2px 12px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isOwner ? 'pointer' : 'default', overflow: 'hidden', transition: 'opacity 0.15s' }}
             >
               {avatarSrc
                 ? <img src={avatarSrc} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : <span style={{ color: color.dot, fontWeight: 800, fontSize: 28 }}>{team.name.charAt(0)}</span>
               }
             </div>
-            <div
-              onClick={() => avatarRef.current.click()}
-              style={{ position: 'absolute', bottom: -2, right: -2, background: '#2c2a26', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', cursor: 'pointer', border: '2px solid #f5f3ef' }}
-            >+</div>
+            {isOwner && (
+              <div
+                onClick={() => avatarRef.current.click()}
+                style={{ position: 'absolute', bottom: -2, right: -2, background: '#2c2a26', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#fff', cursor: 'pointer', border: '2px solid #f5f3ef' }}
+              >+</div>
+            )}
             <input ref={avatarRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={changeAvatar} />
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20 }}>
-          <div>
-            {editingName ? (
+          <div style={{ minWidth: 0 }}>
+            {editingName && isOwner ? (
               <input
                 value={name}
                 autoFocus
@@ -1112,22 +1163,34 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
               />
             ) : (
               <h1
-                onDoubleClick={() => setEditingName(true)}
-                style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1a1814', letterSpacing: '-0.4px', cursor: 'text' }}
+                onDoubleClick={() => isOwner && setEditingName(true)}
+                style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#1a1814', letterSpacing: '-0.4px', cursor: isOwner ? 'text' : 'default' }}
               >{team.name}</h1>
             )}
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#a09d97' }}>
+            <p style={{
+              margin: '4px 0 0', fontSize: 13, color: '#a09d97',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+            }}>
               {team.description || 'Sem descrição'} · {members.length} {members.length === 1 ? 'membro' : 'membros'}
             </p>
           </div>
-          <PrimaryBtn onClick={() => setShowInvite(true)} small>+ Convidar pessoa</PrimaryBtn>
+          {isAdminOrOwner && <PrimaryBtn onClick={() => setShowInvite(true)} small style={{ flexShrink: 0 }}>+ Convidar pessoa</PrimaryBtn>}
         </div>
 
         {error && <p style={{ fontSize: 12, color: '#ef4444', margin: '0 0 12px' }}>{error}</p>}
 
-        {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, borderBottom: '1.5px solid #e8e4de', marginBottom: 28 }}>
-          {[['members', 'Membros'], ['docs', 'Docs'], ['invite', 'Convite'], ['settings', 'Config']].map(([tab, label]) => (
+          {[
+            ['members', 'Membros'],
+            ['docs', 'Docs'],
+            ...(isAdminOrOwner ? [['invite', 'Convite']] : []),
+            ...(isOwner ? [['settings', 'Config']] : []),
+          ].map(([tab, label]) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1142,7 +1205,7 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
             {members.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: '#c5c2bc' }}>
                 <p style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 500, color: '#a09d97' }}>Nenhum membro ainda</p>
-                <PrimaryBtn onClick={() => setShowInvite(true)} small>+ Convidar primeira pessoa</PrimaryBtn>
+                {isAdminOrOwner && <PrimaryBtn onClick={() => setShowInvite(true)} small>+ Convidar primeira pessoa</PrimaryBtn>}
               </div>
             ) : (
               <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
@@ -1157,6 +1220,18 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                   const displayEmail = m.user_email || m.email || '';
                   const avatarUrl = m.user_avatar || m.avatar_url || null;
                   const initials = displayName.split(' ').map((p) => p[0]).join('').toUpperCase().slice(0, 2);
+                  const rowIsOwner = m.role === 'owner';
+                  const rowIsAdmin = m.role === 'admin';
+                  const isSelf = displayEmail && displayEmail === myEmail;
+
+                  const canTogglePapel = isOwner && !rowIsOwner;
+
+                  const canKick =
+                    !isSelf && !rowIsOwner &&
+                    (isOwner || (myRole === 'admin' && !rowIsAdmin));
+
+                  const roleLabel = rowIsOwner ? 'Owner' : rowIsAdmin ? 'Admin' : 'Membro';
+
                   return (
                     <div
                       key={m.id || userId}
@@ -1168,19 +1243,30 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                         <div style={{ width: 38, height: 38, borderRadius: '50%', background: avatarUrl ? 'none' : color.bg, border: `1.5px solid ${color.dot}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: color.text, overflow: 'hidden', flexShrink: 0 }}>
                           {avatarUrl ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
                         </div>
-                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814' }}>{displayName}</p>
+                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814' }}>{displayName}{isSelf ? ' (você)' : ''}</p>
                       </div>
                       <span style={{ fontSize: 13, color: '#a09d97', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail}</span>
                       <button
-                        onClick={() => toggleRole(userId, m.role)}
-                        style={{ background: m.role === 'admin' ? color.bg : '#f0ede8', color: m.role === 'admin' ? color.text : '#7a7570', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s', width: 'fit-content' }}
-                      >{m.role === 'admin' ? 'Admin' : 'Membro'}</button>
-                      <button
-                        onClick={() => kickMember(userId)}
-                        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
-                        onMouseLeave={(e) => e.currentTarget.style.color = '#e2ddd6'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e2ddd6', fontSize: 16, padding: 4, transition: 'color 0.15s', lineHeight: 1, justifySelf: 'end' }}
-                      >×</button>
+                        onClick={() => canTogglePapel && toggleRole(userId, m.role)}
+                        disabled={!canTogglePapel}
+                        style={{
+                          background: rowIsOwner ? '#fffbeb' : rowIsAdmin ? color.bg : '#f0ede8',
+                          color: rowIsOwner ? '#92400e' : rowIsAdmin ? color.text : '#7a7570',
+                          border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 700,
+                          cursor: canTogglePapel ? 'pointer' : 'default',
+                          fontFamily: 'inherit', transition: 'all 0.15s', width: 'fit-content',
+                          opacity: canTogglePapel || rowIsOwner ? 1 : 0.85,
+                        }}
+                        title={canTogglePapel ? (rowIsAdmin ? 'Rebaixar para membro' : 'Promover a admin') : undefined}
+                      >{roleLabel}</button>
+                      {canKick ? (
+                        <button
+                          onClick={() => requestKick(m)}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = '#e2ddd6'}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e2ddd6', fontSize: 16, padding: 4, transition: 'color 0.15s', lineHeight: 1, justifySelf: 'end' }}
+                        >×</button>
+                      ) : <span />}
                     </div>
                   );
                 })}
@@ -1192,7 +1278,6 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
         {/* Tab: Docs */}
         {activeTab === 'docs' && (
           <div style={{ display: 'flex', gap: 0, minHeight: 400 }}>
-            {/* Lista de arquivos */}
             <div style={{ flex: selectedFile ? '0 0 360px' : '1', minWidth: 0, transition: 'flex 0.2s' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                 <div style={{ fontSize: 13, color: '#a09d97' }}>
@@ -1228,7 +1313,6 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                         onMouseEnter={e => { if (!isSelected) e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; }}
                         onMouseLeave={e => { if (!isSelected) e.currentTarget.style.boxShadow = 'none'; }}
                       >
-                        {/* Thumbnail por tipo */}
                         {kind === 'image' && (gf.file_url||gf.image_url||gf.file) ? (
                           <div style={{ width: '100%', aspectRatio: '3/4', borderRadius: '10px 10px 0 0', overflow: 'hidden', flexShrink: 0 }}>
                             <img src={gf.file_url||gf.image_url||gf.file} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -1259,7 +1343,6 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                 </div>
               )}
             </div>
-            {/* Painel de preview */}
             {selectedFile && (
               <div style={{ flex: 1, minWidth: 0, marginLeft: 24 }}>
                 <GroupFilePreviewPanel file={selectedFile} onClose={() => setSelectedFile(null)} />
@@ -1268,23 +1351,20 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
           </div>
         )}
 
-        {/* Tab: Convite */}
-        {activeTab === 'invite' && (
-          <div style={{ maxWidth: 520 }}>
+        {/* Tab: Convite (só admin/owner) */}
+        {activeTab === 'invite' && isAdminOrOwner && (
+          <div style={{ maxWidth: 1000 }}>
             <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.05)', padding: '24px' }}>
               <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700, color: '#1a1814' }}>Link de convite</h3>
               <p style={{ margin: '0 0 16px', fontSize: 13, color: '#a09d97', lineHeight: 1.5 }}>Qualquer pessoa com este link pode entrar na equipe como membro.</p>
               <CopyLink groupId={team.id} color={color} />
-              <div style={{ marginTop: 20, padding: '14px 16px', background: color.bg, borderRadius: 10 }}>
-                <p style={{ margin: 0, fontSize: 12, color: color.text, fontWeight: 600 }}>Dica: você também pode convidar pessoas diretamente pela aba Membros buscando pelo username delas.</p>
-              </div>
             </div>
           </div>
         )}
 
-        {/* Tab: Config */}
-        {activeTab === 'settings' && (
-          <div style={{ maxWidth: 520 }}>
+        {/* Tab: Config (só owner) */}
+        {activeTab === 'settings' && isOwner && (
+          <div style={{ maxWidth: 1000 }}>
             <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.05)', padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
                 <FieldLabel>Descrição</FieldLabel>
@@ -1294,13 +1374,17 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                   onBlur={saveDescription}
                   onFocus={(e) => e.target.style.borderColor = '#2c2a26'}
                   rows={3}
-                  style={{ width: '100%', border: '1.5px solid #e2ddd6', borderRadius: 10, padding: '10px 13px', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', color: '#1a1814', background: '#faf9f7', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+                  maxLength={DESCRIPTION_MAX_LENGTH}
+                  style={{ width: '100%', border: '1.5px solid #e2ddd6', borderRadius: 10, padding: '10px 13px', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'none', color: '#1a1814', background: '#faf9f7', boxSizing: 'border-box', transition: 'border-color 0.15s', wordBreak: 'break-word', overflowWrap: 'break-word' }}
                 />
+                <div style={{ marginTop: 4, fontSize: 11, color: '#c5c2bc', textAlign: 'right' }}>
+                  {description.length}/{DESCRIPTION_MAX_LENGTH}
+                </div>
               </div>
               <div style={{ paddingTop: 16, borderTop: '1px solid #f0ede8' }}>
                 <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700, color: '#ef4444' }}>Zona de perigo</p>
                 <button
-                  onClick={deleteGroup}
+                  onClick={() => setShowDeleteConfirm(true)}
                   style={{ background: '#fef2f2', color: '#ef4444', border: '1.5px solid #fecaca', borderRadius: 10, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
                 >Excluir equipe</button>
               </div>
@@ -1313,6 +1397,26 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
 
       {showInvite && (
         <InviteMemberModal group={team} onClose={() => setShowInvite(false)} onInvited={() => {}} />
+      )}
+
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          title="Excluir equipe"
+          message={`Tem certeza que deseja excluir "${team.name}"? Essa ação não pode ser desfeita e todos os dados da equipe serão perdidos.`}
+          confirmLabel="Excluir equipe"
+          onConfirm={deleteGroup}
+          onClose={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {kickTarget && (
+        <ConfirmDeleteModal
+          title="Remover membro"
+          message={`Tem certeza que deseja remover ${kickTarget.user_full_name || kickTarget.full_name || kickTarget.user_username || kickTarget.username || 'este membro'} da equipe?`}
+          confirmLabel="Remover"
+          onConfirm={kickMember}
+          onClose={() => setKickTarget(null)}
+        />
       )}
     </div>
   );
@@ -1338,13 +1442,11 @@ function TeamCard({ team, onClick }) {
         border: '1px solid rgba(0,0,0,0.04)',
       }}
     >
-      {/* Área da capa — sem overflow:hidden próprio para o avatar vazar */}
       <div style={{ height: 90, position: 'relative' }}>
         {coverSrc
           ? <img src={coverSrc} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           : <div style={{ width: '100%', height: '100%', background: '#ece9e4' }} />
         }
-        {/* Avatar — vaza para baixo; o overflow:hidden do card pai contém tudo */}
         <div style={{
           position: 'absolute', bottom: -18, left: 16,
           width: 48, height: 48, borderRadius: 12,
@@ -1362,7 +1464,6 @@ function TeamCard({ team, onClick }) {
         </div>
       </div>
 
-      {/* Corpo do card */}
       <div style={{ padding: '26px 16px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1814' }}>{team.name}</span>
@@ -1370,7 +1471,14 @@ function TeamCard({ team, onClick }) {
             {(team.members || []).length} {(team.members || []).length === 1 ? 'membro' : 'membros'}
           </span>
         </div>
-        <p style={{ margin: '0 0 14px', fontSize: 12, color: '#a09d97', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{
+          margin: '0 0 14px', fontSize: 12, color: '#a09d97',
+          display: '-webkit-box',
+          WebkitLineClamp: 1,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          wordBreak: 'break-word',
+        }}>
           {team.description || 'Sem descrição'}
         </p>
         {(team.members || []).length > 0 && (
