@@ -1042,13 +1042,20 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
   const toggleRole = async (userId, currentRole) => {
     if (!isOwner) return;
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
+    
+    // Optimistic update - atualiza UI imediatamente
+    const previousMembers = members;
+    setMembers((prev) => prev.map((m) => (m.user === userId || m.id === userId) ? { ...m, role: newRole } : m));
+    
     try {
       const res = await fetch(`${API}/groups/${team.id}/members/${userId}/role/`, {
         method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ role: newRole }),
       });
       if (!res.ok) throw new Error();
-      setMembers((prev) => prev.map((m) => (m.user === userId || m.id === userId) ? { ...m, role: newRole } : m));
+      // Sucesso - a UI já está atualizada
     } catch {
+      // Rollback em caso de erro
+      setMembers(previousMembers);
       setError('Erro ao alterar papel');
     }
   };

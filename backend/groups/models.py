@@ -7,6 +7,7 @@ class Group(models.Model):
     description = models.TextField(blank=True, default='', max_length=560)
     photo_url = models.URLField(blank=True, null=True)
     banner_url = models.URLField(blank=True, null=True)
+    color = models.CharField(max_length=7, default='#2c2a26', blank=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

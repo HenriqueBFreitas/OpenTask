@@ -275,7 +275,7 @@ export default function SettingsView({ onAvatarUpdate }) {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, color: '#6b6760', lineHeight: 1.6, marginBottom: 14 }}>
                 Clique na foto para escolher uma imagem.<br />
-                <span style={{ fontSize: 12, color: '#a09d97' }}>JPG, PNG, GIF ou WEBP · máx. 5 MB</span>
+                <span style={{ fontSize: 12, color: '#a09d97' }}>JPG, PNG, ou WEBP · máx. 5 MB</span>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <SaveBtn onClick={saveAvatar} loading={savingAvatar} saved={savedAvatar} disabled={!avatarFile} />
