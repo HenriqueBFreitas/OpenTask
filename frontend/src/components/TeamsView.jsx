@@ -1044,7 +1044,7 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
     try {
       const res = await fetch(`${API}/groups/${team.id}/members/${userId}/role/`, {
-        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ role: newRole }),
+        method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ role: newRole }),
       });
       if (!res.ok) throw new Error();
       setMembers((prev) => prev.map((m) => (m.user === userId || m.id === userId) ? { ...m, role: newRole } : m));
