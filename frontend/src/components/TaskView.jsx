@@ -1390,21 +1390,17 @@ export default function TasksView() {
 
   const addSubtask = async (taskId, title) => {
   try {
+    // Encontra a tarefa para verificar se pertence a um grupo
     const task = tasks.find((t) => t.id === taskId);
-    const isGroupTask = !!task?.group;
-
-    const endpoint = isGroupTask
-      ? `${API}/groups/subtasks/`
-      : `${API}/tasks/subtasks/`;
-
-    const body = isGroupTask
-      ? { task: taskId, title, completed: false, group: task.group }
-      : { task: taskId, title, completed: false };
-
+    const isGroupTask = task && Array.isArray(task.groups) && task.groups.length > 0;
+    
+    // Define o endpoint correto baseado no tipo de tarefa
+    const endpoint = isGroupTask ? `${API}/groups/subtasks/` : `${API}/tasks/subtasks/`;
+    
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify(body),
+      body: JSON.stringify({ task: taskId, title, completed: false }),
     });
     if (!res.ok) throw new Error();
     const sub = await res.json();
@@ -1427,6 +1423,39 @@ export default function TasksView() {
       ),
     }))
   );
+  try {
+    const task = tasks.find((t) => t.subtasks?.some((s) => s.id === sub.id));
+    const isGroupTask = task && Array.isArray(task.groups) && task.groups.length > 0;
+    
+    // Define o endpoint correto baseado no tipo de tarefa
+    const endpoint = isGroupTask 
+      ? `${API}/groups/subtasks/${sub.id}/` 
+      : `${API}/tasks/subtasks/${sub.id}/`;
+    
+    const res = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ completed: !sub.completed }),
+    });
+    if (!res.ok) throw new Error();
+    const u = await res.json();
+    setTasks((prev) =>
+      prev.map((t) => ({
+        ...t,
+        subtasks: t.subtasks?.map((s) => (s.id === sub.id ? u : s)),
+      }))
+    );
+  } catch {
+    // Revert optimistic update on failure
+    setTasks((prev) =>
+      prev.map((t) => ({
+        ...t,
+        subtasks: t.subtasks?.map((s) => (s.id === sub.id ? sub : s)),
+      }))
+    );
+    setError('Erro ao atualizar subtarefa.');
+  }
+};
 
   const parentTask = tasks.find((t) =>
     t.subtasks?.some((s) => s.id === sub.id)
