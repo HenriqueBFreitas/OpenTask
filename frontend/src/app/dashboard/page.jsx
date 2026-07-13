@@ -48,6 +48,21 @@ export default function Dashboard() {
   const [username, setUsername] = useState('');
   const [avatar, setAvatar] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // null = ainda verificando, false = sem auth, true = autenticado
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Guard: verifica token antes de renderizar qualquer coisa
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      // Limpa cookies por precaução e redireciona
+      document.cookie = 'access=; path=/; max-age=0';
+      document.cookie = 'refresh=; path=/; max-age=0';
+      window.location.replace('/login');
+      return;
+    }
+    setAuthChecked(true);
+  }, []);
 
   // Garante que começa expandida no desktop
   useEffect(() => {
@@ -83,6 +98,9 @@ export default function Dashboard() {
     setActive(id);
     setMobileMenuOpen(false); // Fecha o menu mobile ao selecionar
   };
+
+  // Não renderiza nada até confirmar que há token — evita flash da sidebar no login
+  if (!authChecked) return null;
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f7f5f0' }}>

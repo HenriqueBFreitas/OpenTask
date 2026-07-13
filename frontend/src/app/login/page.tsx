@@ -187,7 +187,8 @@ export default function LoginPage() {
         if (!res.ok) { setError(data.detail || data.email?.[0] || 'Algo deu errado.'); return; }
         localStorage.setItem('access_token', data.access);
         localStorage.setItem('refresh_token', data.refresh);
-        document.cookie = `access=${data.access}; path=/`;
+        document.cookie = `access=${data.access}; path=/; max-age=3600; SameSite=Lax`;
+        document.cookie = `refresh=${data.refresh}; path=/; max-age=604800; SameSite=Lax`;
         router.push('/dashboard');
       } else {
         if (!email.trim()) { setError('Email é obrigatório.'); return; }

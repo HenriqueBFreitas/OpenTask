@@ -349,9 +349,9 @@ export default function SettingsView({ onAvatarUpdate }) {
               onClick={() => {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('refresh_token');
-                document.cookie = 'access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                document.cookie = 'refresh=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                window.location.href = '/login';
+                document.cookie = 'access=; path=/; max-age=0; SameSite=Lax';
+                document.cookie = 'refresh=; path=/; max-age=0; SameSite=Lax';
+                window.location.replace('/login');
               }}
               onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
               onMouseLeave={e => e.currentTarget.style.background = '#fff5f5'}

@@ -78,15 +78,14 @@ class GroupFileSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_file_url(self, obj):
-        # Prioridade: Cloudinary (image_url) → arquivo local (file)
+        # Imagens ficam como URL pública (só leitura, sem dados sensíveis).
+        # Arquivos RAW são servidos pelo proxy autenticado — nunca expõe
+        # a URL direta do Cloudinary.
         if obj.file.image_url:
             return obj.file.image_url
         if obj.file.file:
-            raw = obj.file.file.url
-            # Se o storage já retornou URL absoluta (Cloudinary), usa direto
-            if raw.startswith('http'):
-                return raw
             request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(raw)
+                return request.build_absolute_uri(f'/api/files/{obj.file.pk}/?download=1')
+            return f'/api/files/{obj.file.pk}/?download=1'
         return None
