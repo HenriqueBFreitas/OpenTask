@@ -23,30 +23,27 @@ class SubTaskSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'id', 'user', 'completed_before_task']
 
     def validate_task(self, value):
-
         request = self.context.get('request')
         if not request:
             return value
         
         user = request.user
         
-        if value.is_personal:
-            if value.user != user:
-                raise serializers.ValidationError("Você não pode criar subtarefas nesta task.")
+        if value.user == user:
             return value
         
-        task_groups = value.groups.all()
-        if task_groups.exists():
-            user_groups = user.group_memberships.values_list('group_id', flat=True)
-            task_group_ids = task_groups.values_list('id', flat=True)
+        if not value.is_personal:
+            task_group_ids = list(value.groups.values_list('id', flat=True))
             
-            if not any(gid in user_groups for gid in task_group_ids):
-                raise serializers.ValidationError("Você não é membro dos grupos desta task.")
-        else:
-            if value.user != user:
-                raise serializers.ValidationError("Você não pode criar subtarefas nesta task.")
+            if task_group_ids:
+                user_group_ids = list(user.group_memberships.values_list('group_id', flat=True))
+                
+                has_access = any(gid in user_group_ids for gid in task_group_ids)
+                
+                if has_access:
+                    return value
         
-        return value
+        raise serializers.ValidationError("Você não tem permissão para criar subtarefas nesta task.")
 
 class TaskSerializer(serializers.ModelSerializer):
     images_data = TaskImageSerializer(source='images', many=True, read_only=True)
