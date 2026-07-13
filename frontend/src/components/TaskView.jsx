@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 const getToken = () => localStorage.getItem('access_token');
@@ -591,12 +592,13 @@ function TaskCard({
 
   return (
     <>
-      {confirmDelete && (
+      {confirmDelete && createPortal(
         <DeleteModal
           taskTitle={task.title}
           onConfirm={() => { setConfirmDelete(false); onDelete(task.id); }}
           onCancel={() => setConfirmDelete(false)}
-        />
+        />,
+        document.body
       )}
 
       <div
