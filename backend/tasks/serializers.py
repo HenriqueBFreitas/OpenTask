@@ -48,15 +48,24 @@ class TaskSerializer(serializers.ModelSerializer):
         queryset=Group.objects.all(),
         required=False,
     )
+    created_by = serializers.SerializerMethodField()
+
+    def get_created_by(self, obj):
+        return {
+            'id': obj.user.id,
+            'full_name': obj.user.full_name,
+            'email': obj.user.email,
+            'avatar_url': obj.user.avatar_url if hasattr(obj.user, 'avatar_url') else None,
+        }
 
     class Meta:
         model = Task
         fields = [
             'id', 'title', 'description', 'completed',
             'created_at', 'images_data', 'subtasks',
-            'groups', 'is_personal',
+            'groups', 'is_personal', 'created_by',
         ]
-        read_only_fields = ['id', 'user', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at', 'created_by']
 
 class BoardSerializer(serializers.ModelSerializer):
     class Meta:
