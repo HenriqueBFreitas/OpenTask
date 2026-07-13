@@ -7,12 +7,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
+from rest_framework.exceptions import PermissionDenied
 
 from .models import Task, SubTask, TaskImage, Board
 from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
 
 def user_group_ids(user):
-    """Retorna os IDs dos grupos que o usuário faz parte (como membro ou owner)."""
     return user.group_memberships.values_list('group_id', flat=True)
 
 class TaskViewSet(ModelViewSet):
@@ -31,7 +31,7 @@ class TaskViewSet(ModelViewSet):
     def perform_create(self, serializer):
         groups = self.request.data.get('groups', [])
         is_personal = self.request.data.get('is_personal', True)
-
+        
         if groups and is_personal:
             is_personal = False
         
@@ -71,10 +71,24 @@ class SubTaskViewSet(ModelViewSet):
             Q(task__groups__in=groups, task__is_personal=False)
         ).distinct()
 
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
+    def perform_create(self, serializer):
+        task = serializer.validated_data.get('task')
+        user = self.request.user
+        
+        if task.user == user:
+            serializer.save()
+            return
+        
+        if not task.is_personal:
+            task_group_ids = task.groups.values_list('id', flat=True)
+            user_group_ids = user_group_ids(user)
+            
+            for gid in task_group_ids:
+                if gid in user_group_ids:
+                    serializer.save()
+                    return
+        
+        raise PermissionDenied("Você não tem permissão para criar subtarefas nesta task.")
 
 class BoardView(APIView):
     permission_classes = [IsAuthenticated]
@@ -84,7 +98,7 @@ class BoardView(APIView):
         return Response(BoardSerializer(board).data)
 
     def put(self, request):
-        board, _ = Board.objects.get_create(user=request.user)
+        board, _ = Board.objects.get_or_create(user=request.user)
         serializer = BoardSerializer(board, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
