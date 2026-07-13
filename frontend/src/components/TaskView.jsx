@@ -1188,6 +1188,7 @@ export default function TasksView() {
   const [view, setView] = useState(() => loadView());
   // 'active' = tarefas pendentes | 'completed' = concluídas
   const [tab, setTab] = useState('active');
+  const updateSeqRef = useRef({});
 
   // Grid drag state
   const [dragIndex, setDragIndex] = useState(null);
@@ -1423,14 +1424,20 @@ export default function TasksView() {
 
   const updateTask = async (id, data) => {
     setTasks((prev) => prev.map((t) => t.id === id ? { ...t, ...data } : t));
+
+    updateSeqRef.current[id] = (updateSeqRef.current[id] || 0) + 1;
+    const seq = updateSeqRef.current[id];
+
     try {
       const res = await fetch(`${API}/tasks/${id}/`, {
         method: 'PATCH', headers: authHeaders(), body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error();
       const u = await res.json();
+      if (updateSeqRef.current[id] !== seq) return;
       setTasks((prev) => prev.map((t) => t.id === id ? { ...t, ...u } : t));
     } catch {
+      if (updateSeqRef.current[id] !== seq) return;
       setError('Erro ao atualizar tarefa.');
     }
   };
@@ -1472,6 +1479,10 @@ const toggleSubtask = async (sub) => {
       ),
     }))
   );
+
+  updateSeqRef.current[sub.id] = (updateSeqRef.current[sub.id] || 0) + 1;
+  const seq = updateSeqRef.current[sub.id];
+
   try {
     const res = await fetch(`${API}/subtasks/${sub.id}/`, {
       method: 'PATCH',
@@ -1480,6 +1491,7 @@ const toggleSubtask = async (sub) => {
     });
     if (!res.ok) throw new Error();
     const u = await res.json();
+    if (updateSeqRef.current[sub.id] !== seq) return;
     setTasks((prev) =>
       prev.map((t) => ({
         ...t,
@@ -1487,6 +1499,7 @@ const toggleSubtask = async (sub) => {
       }))
     );
   } catch {
+    if (updateSeqRef.current[sub.id] !== seq) return;
     setTasks((prev) =>
       prev.map((t) => ({
         ...t,
