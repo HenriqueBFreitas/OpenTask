@@ -109,7 +109,7 @@ class GoogleLoginView(APIView):
             if user:
                 if not user.google_id:
                     user.google_id = google_id
-                if not user.avatar_set:
+                if not user.avatar_url:
                     user.avatar_url = picture
 
                 if not user.full_name and google_name:
@@ -129,6 +129,7 @@ class GoogleLoginView(APIView):
                 user.full_name = google_name
                 user.username_set = False
                 user.save()
+
 
         except IntegrityError:
             return Response(
