@@ -130,7 +130,6 @@ class GoogleLoginView(APIView):
                 user.username_set = False
                 user.save()
 
-
         except IntegrityError:
             return Response(
                 {'error': 'Erro ao criar usuário'},
