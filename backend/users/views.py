@@ -57,6 +57,12 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        if not settings.GOOGLE_CLIENT_ID:
+            return Response(
+                {'error': 'Configuração do Google OAuth ausente no servidor'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
         try:
             google_response = requests.get(
                 'https://oauth2.googleapis.com/tokeninfo',
@@ -83,7 +89,8 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if data.get('email_verified') != 'true':
+        email_verified = data.get('email_verified')
+        if email_verified not in ('true', True):
             return Response(
                 {'error': 'Email não verificado'},
                 status=status.HTTP_400_BAD_REQUEST

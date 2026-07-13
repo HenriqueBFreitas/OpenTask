@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Task, SubTask, TaskImage, Board
 from groups.models import Group
 
+
 class TaskImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskImage
@@ -26,34 +27,21 @@ class SubTaskSerializer(serializers.ModelSerializer):
 
     def validate_task(self, value):
         request = self.context.get('request')
-        if request and value.user != request.user:
-            raise serializers.ValidationError("Você não pode usar essa task.")
-        return value
+        if not request:
+            return value
 
+        user = request.user
 
-class TaskSerializer(serializers.ModelSerializer):
-    images_data = TaskImageSerializer(source='images', many=True, read_only=True)
-    subtasks = SubTaskSerializer(many=True, read_only=True)
+        if value.user == user:
+            return value
 
-    class Meta:
-        model = Task
-        fields = [
-            'id',
-            'title',
-            'description',
-            'completed',
-            'created_at',
-            'images_data',
-            'subtasks',
-        ]
-        read_only_fields = ['id', 'user', 'created_at']
+        if not value.is_personal:
+            user_group_ids = set(user.group_memberships.values_list('group_id', flat=True))
+            task_group_ids = set(value.groups.values_list('id', flat=True))
+            if user_group_ids & task_group_ids:
+                return value
 
-
-class BoardSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Board
-        fields = ['id', 'elements', 'app_state', 'files', 'updated_at']
-        read_only_fields = ['id', 'updated_at']
+        raise serializers.ValidationError("Você não tem permissão para criar subtarefas nesta task.")
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -73,3 +61,10 @@ class TaskSerializer(serializers.ModelSerializer):
             'groups', 'is_personal',
         ]
         read_only_fields = ['id', 'user', 'created_at']
+
+
+class BoardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Board
+        fields = ['id', 'elements', 'app_state', 'files', 'updated_at']
+        read_only_fields = ['id', 'updated_at']

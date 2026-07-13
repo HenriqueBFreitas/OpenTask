@@ -33,11 +33,12 @@ class TaskViewSet(ModelViewSet):
         ).distinct()
 
     def perform_create(self, serializer):
-        task = serializer.save(user=self.request.user)
         groups = self.request.data.get('groups', [])
+        is_personal = not groups
+
+        task = serializer.save(user=self.request.user, is_personal=is_personal)
         if groups:
             task.groups.set(groups)
-            task.save()
 
 
     @action(
