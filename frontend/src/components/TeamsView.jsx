@@ -816,7 +816,7 @@ function InviteMemberModal({ group, onClose, onInvited }) {
     if (!query.trim()) return;
     setSearching(true); setResults([]); setError('');
     try {
-      const res = await fetch(`${API}/groups/${group.id}/users/search/?q=${encodeURIComponent(query.trim())}, { headers: getAuthHeaders() }`);
+      const res = await fetch(`${API}/groups/${group.id}/users/search/?q=${encodeURIComponent(query.trim())}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Erro ao buscar usuários');
       const data = await res.json();
       const list = Array.isArray(data) ? data : (Array.isArray(data.results) ? data.results : []);
