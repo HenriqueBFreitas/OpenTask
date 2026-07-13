@@ -1389,58 +1389,90 @@ export default function TasksView() {
   };
 
   const addSubtask = async (taskId, title) => {
-    try {
-      const res = await fetch(`${API}/tasks/subtasks/`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ task: taskId, title, completed: false }),
-      });
-      if (!res.ok) throw new Error();
-      const sub = await res.json();
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), sub] } : t
-        )
-      );
-    } catch {
-      setError('Erro ao criar subtarefa.');
-    }
-  };
+  try {
+    const task = tasks.find((t) => t.id === taskId);
+    const isGroupTask = !!task?.group;
+
+    const endpoint = isGroupTask
+      ? `${API}/groups/subtasks/`
+      : `${API}/tasks/subtasks/`;
+
+    const body = isGroupTask
+      ? { task: taskId, title, completed: false, group: task.group }
+      : { task: taskId, title, completed: false };
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error();
+    const sub = await res.json();
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), sub] } : t
+      )
+    );
+  } catch {
+    setError('Erro ao criar subtarefa.');
+  }
+};
 
   const toggleSubtask = async (sub) => {
+  setTasks((prev) =>
+    prev.map((t) => ({
+      ...t,
+      subtasks: t.subtasks?.map((s) =>
+        s.id === sub.id ? { ...s, completed: !sub.completed } : s
+      ),
+    }))
+  );
+
+  const parentTask = tasks.find((t) =>
+    t.subtasks?.some((s) => s.id === sub.id)
+  );
+  const isGroupTask = !!parentTask?.group;
+  const endpoint = isGroupTask
+    ? `${API}/groups/subtasks/${sub.id}/`
+    : `${API}/tasks/subtasks/${sub.id}/`;
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'PATCH',
+      headers: authHeaders(),
+      body: JSON.stringify({ completed: !sub.completed }),
+    });
+
+    if (!res.ok) {
+      let backendMsg = null;
+      try {
+        const errData = await res.json();
+        backendMsg = errData?.error || null;
+      } catch {}
+
+      if (res.status === 403) {
+        throw new Error(backendMsg || 'Você não tem permissão para atualizar essa subtarefa.');
+      }
+      throw new Error(backendMsg || 'Erro ao atualizar subtarefa.');
+    }
+
+    const u = await res.json();
     setTasks((prev) =>
       prev.map((t) => ({
         ...t,
-        subtasks: t.subtasks?.map((s) =>
-          s.id === sub.id ? { ...s, completed: !sub.completed } : s
-        ),
+        subtasks: t.subtasks?.map((s) => (s.id === sub.id ? u : s)),
       }))
     );
-    try {
-      const res = await fetch(`${API}/tasks/subtasks/${sub.id}/`, {
-        method: 'PATCH',
-        headers: authHeaders(),
-        body: JSON.stringify({ completed: !sub.completed }),
-      });
-      if (!res.ok) throw new Error();
-      const u = await res.json();
-      setTasks((prev) =>
-        prev.map((t) => ({
-          ...t,
-          subtasks: t.subtasks?.map((s) => (s.id === sub.id ? u : s)),
-        }))
-      );
-    } catch {
-      // Revert optimistic update on failure
-      setTasks((prev) =>
-        prev.map((t) => ({
-          ...t,
-          subtasks: t.subtasks?.map((s) => (s.id === sub.id ? sub : s)),
-        }))
-      );
-      setError('Erro ao atualizar subtarefa.');
-    }
-  };
+  } catch (err) {
+    setTasks((prev) =>
+      prev.map((t) => ({
+        ...t,
+        subtasks: t.subtasks?.map((s) => (s.id === sub.id ? sub : s)),
+      }))
+    );
+    setError(err.message || 'Erro ao atualizar subtarefa.');
+  }
+};
 
   const handlePositionChange = useCallback((id, x, y) => {
     const positions = loadPositions();
