@@ -476,8 +476,14 @@ function GroupFilePreviewPanel({ file, groupId, onClose }) {
   };
 
   return (
-    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'#f7f5f0',minWidth:0,borderLeft:'1px solid #e8e5e0'}}>
-      <div style={{padding:'14px 20px',background:'#fff',borderBottom:'1px solid #e8e5e0',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'#f7f5f0',minWidth:0,borderLeft:'1px solid #e8e5e0',borderRadius:12}}>
+      <style>{`
+        @media (max-width: 640px) {
+          .group-preview-panel { border-left: none !important; border-top: 1px solid #e8e5e0 !important; border-radius: 12px !important; }
+        }
+      `}</style>
+      <div className="group-preview-panel" style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'#f7f5f0',minWidth:0,borderLeft:'1px solid #e8e5e0',borderRadius:12}}>
+      <div style={{padding:'14px 20px',background:'#fff',borderBottom:'1px solid #e8e5e0',display:'flex',alignItems:'center',gap:12,flexShrink:0,borderRadius:'12px 12px 0 0'}}>
         <div style={{flex:1,overflow:'hidden',minWidth:0}}>
           <div style={{fontSize:13,fontWeight:700,color:'#2c2a26',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{name}</div>
           <div style={{fontSize:11,color:'#a09d97',marginTop:3}}>{size}{pageCount?` · ${pageCount} pág.`:''}</div>
@@ -494,6 +500,7 @@ function GroupFilePreviewPanel({ file, groupId, onClose }) {
           <div style={{fontSize:14,fontWeight:600,color:'#6b6760'}}>Pré-visualização não disponível</div>
           <div style={{fontSize:12,color:'#a09d97'}}>Clique em Baixar para abrir o arquivo</div>
         </div>}
+      </div>
       </div>
     </div>
   );
@@ -1155,7 +1162,12 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
         <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={changeCover} />
       </div>
 
-      <div style={{ padding: '0 36px', maxWidth: 960, margin: '0 auto' }}>
+      <div className="team-detail-inner" style={{ padding: '0 36px', maxWidth: 960, margin: '0 auto' }}>
+        <style>{`
+          @media (max-width: 600px) {
+            .team-detail-inner { padding: 0 16px !important; }
+          }
+        `}</style>
         <div style={{ marginTop: -36, marginBottom: 16 }}>
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <div
@@ -1245,10 +1257,12 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
               </div>
             ) : (
               <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 2px 12px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px 100px 40px', gap: 0, padding: '11px 20px', borderBottom: '1.5px solid #f0ede8', background: '#faf9f7' }}>
-                  {['Pessoa', 'E-mail', 'Papel', ''].map((h, i) => (
-                    <span key={i} style={{ fontSize: 11, fontWeight: 700, color: '#c5c2bc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</span>
-                  ))}
+                {/* Cabeçalho — oculta e-mail em telas pequenas */}
+                <div className="members-grid-header" style={{ display: 'grid', gridTemplateColumns: '1fr 180px 100px 40px', gap: 0, padding: '11px 20px', borderBottom: '1.5px solid #f0ede8', background: '#faf9f7' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#c5c2bc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Pessoa</span>
+                  <span className="col-email-header" style={{ fontSize: 11, fontWeight: 700, color: '#c5c2bc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>E-mail</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#c5c2bc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Papel</span>
+                  <span />
                 </div>
                 {members.map((m, i) => {
                   const userId = m.user || m.id;
@@ -1271,17 +1285,22 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                   return (
                     <div
                       key={m.id || userId}
+                      className="members-grid-row"
                       onMouseEnter={(e) => e.currentTarget.style.background = '#faf9f7'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                       style={{ display: 'grid', gridTemplateColumns: '1fr 180px 100px 40px', gap: 0, padding: '13px 20px', borderTop: i === 0 ? 'none' : '1px solid #f5f3ef', alignItems: 'center', transition: 'background 0.15s' }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                         <div style={{ width: 38, height: 38, borderRadius: '50%', background: avatarUrl ? 'none' : color.bg, border: `1.5px solid ${color.dot}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: color.text, overflow: 'hidden', flexShrink: 0 }}>
                           {avatarUrl ? <img src={avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initials}
                         </div>
-                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814' }}>{displayName}{isSelf ? ' (você)' : ''}</p>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1814', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}{isSelf ? ' (você)' : ''}</p>
+                          {/* E-mail inline só aparece no mobile (col-email fica oculta) */}
+                          <p className="member-email-inline" style={{ margin: 0, fontSize: 11, color: '#a09d97', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'none' }}>{displayEmail}</p>
+                        </div>
                       </div>
-                      <span style={{ fontSize: 13, color: '#a09d97', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail}</span>
+                      <span className="col-email" style={{ fontSize: 13, color: '#a09d97', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayEmail}</span>
                       <button
                         onClick={() => { if (canTogglePapel) toggleRole(userId, m.role); }}
                         disabled={!canTogglePapel}
@@ -1306,6 +1325,15 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
                     </div>
                   );
                 })}
+                <style>{`
+                  @media (max-width: 600px) {
+                    .members-grid-header { grid-template-columns: 1fr 90px 32px !important; }
+                    .members-grid-row   { grid-template-columns: 1fr 90px 32px !important; }
+                    .col-email-header   { display: none !important; }
+                    .col-email          { display: none !important; }
+                    .member-email-inline { display: block !important; }
+                  }
+                `}</style>
               </div>
             )}
           </div>
@@ -1313,8 +1341,15 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
 
         {/* Tab: Docs */}
         {activeTab === 'docs' && (
-          <div style={{ display: 'flex', gap: 0, minHeight: 400 }}>
-            <div style={{ flex: selectedFile ? '0 0 360px' : '1', minWidth: 0, transition: 'flex 0.2s' }}>
+          <div className="docs-layout" style={{ display: 'flex', gap: 0, minHeight: 400 }}>
+            <style>{`
+              @media (max-width: 640px) {
+                .docs-layout { flex-direction: column !important; }
+                .docs-list-panel { flex: 1 1 auto !important; }
+                .docs-preview-panel { margin-left: 0 !important; margin-top: 16px !important; }
+              }
+            `}</style>
+            <div className="docs-list-panel" style={{ flex: selectedFile ? '0 0 360px' : '1', minWidth: 0, transition: 'flex 0.2s' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
                 <div style={{ fontSize: 13, color: '#a09d97' }}>
                   {groupFiles.length > 0 ? `${groupFiles.length} arquivo${groupFiles.length > 1 ? 's' : ''}` : 'Nenhum arquivo ainda'}
@@ -1380,8 +1415,8 @@ function TeamDetail({ team, onBack, onUpdate, onDelete }) {
               )}
             </div>
             {selectedFile && (
-              <div style={{ flex: 1, minWidth: 0, marginLeft: 24 }}>
-                <GroupFilePreviewPanel file={selectedFile} onClose={() => setSelectedFile(null)} />
+              <div className="docs-preview-panel" style={{ flex: 1, minWidth: 0, marginLeft: 24 }}>
+                <GroupFilePreviewPanel file={selectedFile} groupId={team.id} onClose={() => setSelectedFile(null)} />
               </div>
             )}
           </div>
