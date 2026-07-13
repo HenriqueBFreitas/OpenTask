@@ -32,11 +32,10 @@ class SubTaskSerializer(serializers.ModelSerializer):
         if value.user == user:
             return value
 
-        if not value.is_personal:
-            user_group_ids = set(user.group_memberships.values_list('group_id', flat=True))
-            task_group_ids = set(value.groups.values_list('id', flat=True))
-            if user_group_ids & task_group_ids:
-                return value
+        user_group_ids = set(user.group_memberships.values_list('group_id', flat=True))
+        task_group_ids = set(value.groups.values_list('id', flat=True))
+        if user_group_ids & task_group_ids:
+            return value
 
         raise serializers.ValidationError("Você não tem permissão para criar subtarefas nesta task.")
 
