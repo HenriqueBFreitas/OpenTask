@@ -5,7 +5,7 @@ from groups.models import Group  # ajuste o import conforme seu app
 class Task(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True, default='')
+    description = models.TextField(blank=True, default='', max_length=560)
     completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     groups = models.ManyToManyField(Group, blank=True, related_name='personal_tasks')
