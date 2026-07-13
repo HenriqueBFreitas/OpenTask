@@ -60,6 +60,9 @@ yarn-error.log*
 .env
 frontend/.env.local
 .env.local
+.env
+.env.local
+.env*.local
 
 # vercel
 .vercel
@@ -74,3 +77,4 @@ frontend/.next/
 
 #media
 backend/media/
+.env*

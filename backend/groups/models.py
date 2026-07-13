@@ -4,7 +4,7 @@ from django.conf import settings
 
 class Group(models.Model):
     name = models.CharField(max_length=255)
-    description = models.TextField(blank=True, default='')
+    description = models.TextField(blank=True, default='', max_length=560)
     photo_url = models.URLField(blank=True, null=True)
     banner_url = models.URLField(blank=True, null=True)
     owner = models.ForeignKey(

@@ -18,10 +18,8 @@ from .serializers import (
 import requests
 import cloudinary.uploader
 
-
 class LoginView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
-
 
 class CheckUsernameView(APIView):
     permission_classes = [AllowAny]
@@ -38,12 +36,10 @@ class CheckUsernameView(APIView):
         exists = CustomUser.objects.filter(username=username).exists()
         return Response({'exists': exists})
 
-
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
-
 
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
@@ -113,7 +109,7 @@ class GoogleLoginView(APIView):
             if user:
                 if not user.google_id:
                     user.google_id = google_id
-                if not user.avatar_set:
+                if not user.avatar_url:
                     user.avatar_url = picture
 
                 if not user.full_name and google_name:
@@ -147,7 +143,6 @@ class GoogleLoginView(APIView):
             'refresh': str(refresh),
         })
 
-
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -178,7 +173,6 @@ class MeView(APIView):
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class AvatarUploadView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes     = [MultiPartParser, FormParser]
@@ -206,7 +200,6 @@ class AvatarUploadView(APIView):
             return Response({'avatar_url': result['secure_url']})
         except Exception as e:
             return Response({'detail': str(e)}, status=502)
-
 
 class UsernameUpdateView(APIView):
     permission_classes = [IsAuthenticated]

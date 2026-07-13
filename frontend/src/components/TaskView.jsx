@@ -1098,7 +1098,7 @@ function EmptyState({ onCreateClick }) {
         width: '100%', height: '100%', gap: 12,
       }}
     >
-      <div style={{ fontSize: 48, opacity: 0.12, fontWeight: 900, color: '#2c2a26' }}>✓</div>
+      <div style={{ fontSize: 48, opacity: 0.12, fontWeight: 900, color: '#2c2a26' }}></div>
       <span style={{ fontSize: 16, fontWeight: 700, color: '#2c2a26' }}>
         Nenhuma tarefa neste workspace
       </span>
@@ -1395,15 +1395,28 @@ export default function TasksView() {
         headers: authHeaders(),
         body: JSON.stringify({ task: taskId, title, completed: false }),
       });
-      if (!res.ok) throw new Error();
+
+      if (!res.ok) {
+        let backendMsg = null;
+        try {
+          const errData = await res.json();
+          backendMsg = errData?.error || null;
+        } catch {}
+
+        if (res.status === 403) {
+          throw new Error(backendMsg || 'Você não tem permissão para criar subtarefas nesta task.');
+        }
+        throw new Error(backendMsg || 'Erro ao criar subtarefa.');
+      }
+
       const sub = await res.json();
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId ? { ...t, subtasks: [...(t.subtasks || []), sub] } : t
         )
       );
-    } catch {
-      setError('Erro ao criar subtarefa.');
+    } catch (err) {
+      setError(err.message || 'Erro ao criar subtarefa.');
     }
   };
 
@@ -1416,13 +1429,27 @@ export default function TasksView() {
         ),
       }))
     );
+
     try {
       const res = await fetch(`${API}/subtasks/${sub.id}/`, {
         method: 'PATCH',
         headers: authHeaders(),
         body: JSON.stringify({ completed: !sub.completed }),
       });
-      if (!res.ok) throw new Error();
+
+      if (!res.ok) {
+        let backendMsg = null;
+        try {
+          const errData = await res.json();
+          backendMsg = errData?.error || null;
+        } catch {}
+
+        if (res.status === 403) {
+          throw new Error(backendMsg || 'Você não tem permissão para atualizar essa subtarefa.');
+        }
+        throw new Error(backendMsg || 'Erro ao atualizar subtarefa.');
+      }
+
       const u = await res.json();
       setTasks((prev) =>
         prev.map((t) => ({
@@ -1430,7 +1457,7 @@ export default function TasksView() {
           subtasks: t.subtasks?.map((s) => (s.id === sub.id ? u : s)),
         }))
       );
-    } catch {
+    } catch (err) {
       // Revert optimistic update on failure
       setTasks((prev) =>
         prev.map((t) => ({
@@ -1438,7 +1465,7 @@ export default function TasksView() {
           subtasks: t.subtasks?.map((s) => (s.id === sub.id ? sub : s)),
         }))
       );
-      setError('Erro ao atualizar subtarefa.');
+      setError(err.message || 'Erro ao atualizar subtarefa.');
     }
   };
 

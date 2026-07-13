@@ -9,13 +9,11 @@ class TaskImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image_url', 'uploaded_at']
         read_only_fields = ['uploaded_at', 'id', 'user']
 
-
 class TaskImageUploadSerializer(serializers.Serializer):
     images = serializers.ListField(
         child=serializers.ImageField(),
         write_only=True
     )
-
 
 class SubTaskSerializer(serializers.ModelSerializer):
     task = serializers.PrimaryKeyRelatedField(queryset=Task.objects.all())
@@ -42,7 +40,6 @@ class SubTaskSerializer(serializers.ModelSerializer):
                 return value
 
         raise serializers.ValidationError("Você não tem permissão para criar subtarefas nesta task.")
-
 
 class TaskSerializer(serializers.ModelSerializer):
     images_data = TaskImageSerializer(source='images', many=True, read_only=True)

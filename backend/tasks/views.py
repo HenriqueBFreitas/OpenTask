@@ -11,11 +11,8 @@ from rest_framework.views import APIView
 from .models import Task, SubTask, TaskImage, Board
 from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
 
-
 def user_group_ids(user):
-    """Retorna os IDs dos grupos que o usuário faz parte (como membro ou owner)."""
     return user.group_memberships.values_list('group_id', flat=True)
-
 
 class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
@@ -26,9 +23,7 @@ class TaskViewSet(ModelViewSet):
         user = self.request.user
         groups = user_group_ids(user)
         return Task.objects.filter(
-            # Tasks próprias (pessoais ou de grupo criadas por ele)
             Q(user=user) |
-            # Tasks de grupo criadas por outros membros do mesmo grupo
             Q(groups__in=groups, is_personal=False)
         ).distinct()
 
@@ -37,9 +32,9 @@ class TaskViewSet(ModelViewSet):
         is_personal = not groups
 
         task = serializer.save(user=self.request.user, is_personal=is_personal)
+
         if groups:
             task.groups.set(groups)
-
 
     @action(
         detail=True,
@@ -59,7 +54,6 @@ class TaskViewSet(ModelViewSet):
             created.append(TaskImageSerializer(img, context={'request': request}).data)
         return Response(created, status=status.HTTP_201_CREATED)
 
-
 class SubTaskViewSet(ModelViewSet):
     serializer_class = SubTaskSerializer
     permission_classes = [IsAuthenticated]
@@ -68,12 +62,9 @@ class SubTaskViewSet(ModelViewSet):
         user = self.request.user
         groups = user_group_ids(user)
         return SubTask.objects.filter(
-            # Subtasks de tasks próprias
             Q(task__user=user) |
-            # Subtasks de tasks de grupo que o usuário faz parte
             Q(task__groups__in=groups, task__is_personal=False)
         ).distinct()
-
 
 class BoardView(APIView):
     permission_classes = [IsAuthenticated]
