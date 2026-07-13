@@ -18,6 +18,21 @@ from .serializers import (
 import requests
 import cloudinary.uploader
 
+
+def _extract_cloudinary_public_id(url):
+    """Extrai o public_id de uma URL do Cloudinary para uso no destroy."""
+    try:
+        parts = url.split('/upload/')
+        if len(parts) != 2:
+            return None
+        path = parts[1]
+        if path.startswith('v') and '/' in path:
+            path = path.split('/', 1)[1]
+        public_id = path.rsplit('.', 1)[0]
+        return public_id
+    except Exception:
+        return None
+
 class LoginView(TokenObtainPairView):
     serializer_class = EmailTokenObtainPairSerializer
 
@@ -190,6 +205,16 @@ class AvatarUploadView(APIView):
             return Response({'detail': 'Imagem maior que 5 MB.'}, status=400)
 
         try:
+            # Remove o avatar anterior do Cloudinary (apenas avatars hospedados lá)
+            old_url = getattr(request.user, 'avatar_url', None)
+            if old_url and 'res.cloudinary.com' in old_url:
+                try:
+                    public_id = _extract_cloudinary_public_id(old_url)
+                    if public_id:
+                        cloudinary.uploader.destroy(public_id, resource_type='image')
+                except Exception:
+                    pass
+
             result = cloudinary.uploader.upload(
                 avatar,
                 folder='avatars',
@@ -200,6 +225,21 @@ class AvatarUploadView(APIView):
             return Response({'avatar_url': result['secure_url']})
         except Exception as e:
             return Response({'detail': str(e)}, status=502)
+
+    def delete(self, request):
+        """Remove o avatar do usuário (apaga do Cloudinary se aplicável)."""
+        old_url = getattr(request.user, 'avatar_url', None)
+        if old_url and 'res.cloudinary.com' in old_url:
+            try:
+                public_id = _extract_cloudinary_public_id(old_url)
+                if public_id:
+                    cloudinary.uploader.destroy(public_id, resource_type='image')
+            except Exception:
+                pass
+
+        request.user.avatar_url = None
+        request.user.save()
+        return Response(status=204)
 
 class UsernameUpdateView(APIView):
     permission_classes = [IsAuthenticated]
