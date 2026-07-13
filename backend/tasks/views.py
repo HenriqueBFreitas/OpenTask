@@ -7,7 +7,6 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.exceptions import PermissionDenied
 
 from .models import Task, SubTask, TaskImage, Board
 from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
@@ -30,16 +29,12 @@ class TaskViewSet(ModelViewSet):
 
     def perform_create(self, serializer):
         groups = self.request.data.get('groups', [])
-        is_personal = self.request.data.get('is_personal', True)
-        
-        if groups and is_personal:
-            is_personal = False
-        
+        is_personal = groups == [] or groups is None
+
         task = serializer.save(user=self.request.user, is_personal=is_personal)
-        
+
         if groups:
             task.groups.set(groups)
-            task.save()
 
     @action(
         detail=True,
@@ -70,25 +65,6 @@ class SubTaskViewSet(ModelViewSet):
             Q(task__user=user) |
             Q(task__groups__in=groups, task__is_personal=False)
         ).distinct()
-
-    def perform_create(self, serializer):
-        task = serializer.validated_data.get('task')
-        user = self.request.user
-        
-        if task.user == user:
-            serializer.save()
-            return
-        
-        if not task.is_personal:
-            task_group_ids = task.groups.values_list('id', flat=True)
-            user_group_ids = user_group_ids(user)
-            
-            for gid in task_group_ids:
-                if gid in user_group_ids:
-                    serializer.save()
-                    return
-        
-        raise PermissionDenied("Você não tem permissão para criar subtarefas nesta task.")
 
 class BoardView(APIView):
     permission_classes = [IsAuthenticated]
