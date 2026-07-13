@@ -12,6 +12,17 @@ const ORDER_KEY = 'opentask_order';
 const POSITIONS_KEY = 'opentask_positions';
 const VIEW_KEY = 'opentask_view';
 
+// Gera uma cor baseada no nome do grupo
+const getColorFromString = (str) => {
+  if (!str) return '#2c2a26';
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = hash % 360;
+  return `hsl(${hue}, 65%, 50%)`;
+};
+
 const loadOrder = () => {
   try { return JSON.parse(localStorage.getItem(ORDER_KEY) || '[]'); }
   catch { return []; }
@@ -151,13 +162,18 @@ function WorkspaceDropdown({ groups, activeWorkspace, onChange }) {
 
   const items = [
     { id: null, label: 'Pessoal', color: '#a09d97' },
-    ...groups.map((g) => ({ id: g.id, label: g.name, color: g.color || '#2c2a26' })),
+    ...groups.map((g) => ({ 
+      id: g.id, 
+      label: g.name, 
+      color: g.color || getColorFromString(g.name)
+    })),
   ];
 
   const activeColor =
     activeWorkspace === null
       ? '#a09d97'
-      : groups.find((g) => g.id === activeWorkspace)?.color || '#2c2a26';
+      : groups.find((g) => g.id === activeWorkspace)?.color || 
+        getColorFromString(groups.find((g) => g.id === activeWorkspace)?.name);
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -563,7 +579,10 @@ function TaskCard({
   const taskGroupIds = Array.isArray(task.groups) ? task.groups : [];
   const assignedGroups = groups.filter(
     (g) => taskGroupIds.includes(g.id) || taskGroupIds.includes(String(g.id))
-  );
+  ).map(g => ({
+    ...g,
+    color: g.color || getColorFromString(g.name)
+  }));
 
   const done = task.subtasks?.filter((s) => s.completed).length || 0;
   const total = task.subtasks?.length || 0;
@@ -640,7 +659,7 @@ function TaskCard({
                       style={{ width: 10, height: 10, borderRadius: '50%', objectFit: 'cover' }}
                     />
                   ) : (
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.color || '#2c2a26' }} />
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: g.color }} />
                   )}
                   {g.name}
                 </div>
