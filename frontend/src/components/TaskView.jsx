@@ -648,6 +648,41 @@ function TaskCard({
             </div>
           )}
 
+          {/* Creator badge */}
+          {task.created_by && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <div
+                title={`Criado por ${task.created_by.full_name || task.created_by.email}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  background: '#faf9f7', borderRadius: 6,
+                  padding: '3px 8px', fontSize: 10, fontWeight: 500, color: '#6b6760',
+                  border: '1px solid #e8e5e0',
+                }}
+              >
+                {task.created_by.avatar_url ? (
+                  <img
+                    src={task.created_by.avatar_url}
+                    alt={task.created_by.full_name || task.created_by.email}
+                    style={{ width: 14, height: 14, borderRadius: '50%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <span style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    background: '#e8e5e0', display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 7, fontWeight: 700, color: '#6b6760',
+                  }}>
+                    {(task.created_by.full_name || task.created_by.email).charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span style={{ opacity: 0.6 }}>por</span>
+                <span style={{ fontWeight: 600 }}>
+                  {task.created_by.full_name || task.created_by.email.split('@')[0]}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Saving badge */}
           {task._pending && (
             <div
