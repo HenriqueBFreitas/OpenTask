@@ -1388,23 +1388,12 @@ export default function TasksView() {
     }
   };
 
-  const addSubtask = async (taskId, title) => {
+ const addSubtask = async (taskId, title) => {
   try {
-    const task = tasks.find((t) => t.id === taskId);
-    const isGroupTask = !!task?.group;
-
-    const endpoint = isGroupTask
-      ? `${API}/groups/subtasks/`
-      : `${API}/tasks/subtasks/`;
-
-    const body = isGroupTask
-      ? { task: taskId, title, completed: false, group: task.group }
-      : { task: taskId, title, completed: false };
-
-    const res = await fetch(endpoint, {
+    const res = await fetch(`${API}/subtasks/`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify(body),
+      body: JSON.stringify({ task: taskId, title, completed: false }),
     });
     if (!res.ok) throw new Error();
     const sub = await res.json();
@@ -1418,7 +1407,7 @@ export default function TasksView() {
   }
 };
 
-  const toggleSubtask = async (sub) => {
+const toggleSubtask = async (sub) => {
   setTasks((prev) =>
     prev.map((t) => ({
       ...t,
@@ -1427,35 +1416,13 @@ export default function TasksView() {
       ),
     }))
   );
-
-  const parentTask = tasks.find((t) =>
-    t.subtasks?.some((s) => s.id === sub.id)
-  );
-  const isGroupTask = !!parentTask?.group;
-  const endpoint = isGroupTask
-    ? `${API}/groups/subtasks/${sub.id}/`
-    : `${API}/tasks/subtasks/${sub.id}/`;
-
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch(`${API}/subtasks/${sub.id}/`, {
       method: 'PATCH',
       headers: authHeaders(),
       body: JSON.stringify({ completed: !sub.completed }),
     });
-
-    if (!res.ok) {
-      let backendMsg = null;
-      try {
-        const errData = await res.json();
-        backendMsg = errData?.error || null;
-      } catch {}
-
-      if (res.status === 403) {
-        throw new Error(backendMsg || 'Você não tem permissão para atualizar essa subtarefa.');
-      }
-      throw new Error(backendMsg || 'Erro ao atualizar subtarefa.');
-    }
-
+    if (!res.ok) throw new Error();
     const u = await res.json();
     setTasks((prev) =>
       prev.map((t) => ({
@@ -1463,14 +1430,14 @@ export default function TasksView() {
         subtasks: t.subtasks?.map((s) => (s.id === sub.id ? u : s)),
       }))
     );
-  } catch (err) {
+  } catch {
     setTasks((prev) =>
       prev.map((t) => ({
         ...t,
         subtasks: t.subtasks?.map((s) => (s.id === sub.id ? sub : s)),
       }))
     );
-    setError(err.message || 'Erro ao atualizar subtarefa.');
+    setError('Erro ao atualizar subtarefa.');
   }
 };
 
