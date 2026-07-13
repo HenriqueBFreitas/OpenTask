@@ -345,8 +345,14 @@ export default function SettingsView({ onAvatarUpdate }) {
               <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1814' }}>Sair da conta</div>
               <div style={{ fontSize: 12, color: '#a09d97', marginTop: 2 }}>Você precisará fazer login novamente</div>
             </div>
-            <button
-              onClick={() => { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); window.location.href = '/login'; }}
+              <button
+              onClick={() => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                document.cookie = 'access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                document.cookie = 'refresh=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                window.location.href = '/login';
+              }}
               onMouseEnter={e => e.currentTarget.style.background = '#fef2f2'}
               onMouseLeave={e => e.currentTarget.style.background = '#fff5f5'}
               style={{ background: '#fff5f5', color: '#ef4444', border: '1.5px solid #fecaca', borderRadius: 10, padding: '9px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.15s' }}
