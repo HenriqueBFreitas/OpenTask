@@ -1098,7 +1098,7 @@ function EmptyState({ onCreateClick }) {
         width: '100%', height: '100%', gap: 12,
       }}
     >
-      <div style={{ fontSize: 48, opacity: 0.12, fontWeight: 900, color: '#2c2a26' }}>✓</div>
+      <div style={{ fontSize: 48, opacity: 0.12, fontWeight: 900, color: '#2c2a26' }}></div>
       <span style={{ fontSize: 16, fontWeight: 700, color: '#2c2a26' }}>
         Nenhuma tarefa neste workspace
       </span>
