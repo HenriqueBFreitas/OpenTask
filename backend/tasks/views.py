@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.views import APIView
+
 from .models import Task, SubTask, TaskImage, Board
 from .serializers import TaskSerializer, SubTaskSerializer, TaskImageSerializer, BoardSerializer
 
@@ -30,7 +31,7 @@ class TaskViewSet(ModelViewSet):
     def perform_create(self, serializer):
         groups = self.request.data.get('groups', [])
         is_personal = self.request.data.get('is_personal', True)
-        
+
         if groups and is_personal:
             is_personal = False
         
@@ -70,6 +71,11 @@ class SubTaskViewSet(ModelViewSet):
             Q(task__groups__in=groups, task__is_personal=False)
         ).distinct()
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
 class BoardView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -78,7 +84,7 @@ class BoardView(APIView):
         return Response(BoardSerializer(board).data)
 
     def put(self, request):
-        board, _ = Board.objects.get_or_create(user=request.user)
+        board, _ = Board.objects.get_create(user=request.user)
         serializer = BoardSerializer(board, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
