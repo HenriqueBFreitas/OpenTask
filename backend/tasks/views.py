@@ -24,17 +24,21 @@ class TaskViewSet(ModelViewSet):
         groups = user_group_ids(user)
         return Task.objects.filter(
             Q(user=user) |
-            Q(groups__in=groups, is_personal=False)
+            Q(groups__in=groups)
         ).distinct()
 
     def perform_create(self, serializer):
-        groups = self.request.data.get('groups', [])
-        is_personal = groups == [] or groups is None
+        # 'groups' e 'is_personal' já vêm validados pelo serializer (incluindo
+        # a conversão de string 'true'/'false' para bool, e os IDs de grupo
+        # para instâncias de Group). Só aplicamos um valor padrão para
+        # is_personal quando o cliente não o enviou explicitamente.
+        groups = serializer.validated_data.get('groups', [])
+        is_personal = serializer.validated_data.get('is_personal', not groups)
 
-        task = serializer.save(user=self.request.user, is_personal=is_personal)
-
-        if groups:
-            task.groups.set(groups)
+        # Isso preserva a escolha do usuário: uma tarefa pode ser pessoal
+        # E pertencer a uma ou mais equipes ao mesmo tempo. O DRF já cuida
+        # de popular o M2M 'groups' a partir do validated_data.
+        serializer.save(user=self.request.user, is_personal=is_personal)
 
     @action(
         detail=True,
@@ -63,7 +67,7 @@ class SubTaskViewSet(ModelViewSet):
         groups = user_group_ids(user)
         return SubTask.objects.filter(
             Q(task__user=user) |
-            Q(task__groups__in=groups, task__is_personal=False)
+            Q(task__groups__in=groups)
         ).distinct()
 
 class BoardView(APIView):
