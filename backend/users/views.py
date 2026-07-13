@@ -98,7 +98,8 @@ class GoogleLoginView(APIView):
             if user:
                 if not user.google_id:
                     user.google_id = google_id
-                user.avatar_url = picture
+                if not user.avatar_set:
+                    user.avatar_url = picture
 
                 if not user.full_name and google_name:
                     user.full_name = google_name
