@@ -22,9 +22,10 @@ class FileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = File
+        # 'file' foi removido intencionalmente: exporia a URL interna do Cloudinary.
+        # Clientes devem usar 'file_url' (proxy autenticado para RAW, URL pública para imagens).
         fields = [
             'id',
-            'file',
             'file_url',
             'image_url',
             'original_name',
@@ -46,16 +47,16 @@ class FileSerializer(serializers.ModelSerializer):
         ]
 
     def get_file_url(self, obj):
+        # Imagens ficam como URL pública do Cloudinary (sem dados sensíveis).
+        # Arquivos RAW (pdf, docx, pptx, etc.) são servidos pelo proxy autenticado
+        # do backend — nunca expõe a URL direta do Cloudinary na API.
         if obj.image_url:
             return obj.image_url
         if obj.file:
-            raw = obj.file.url
-            # Se o storage já retornou uma URL absoluta (Cloudinary), usa direto
-            if raw.startswith('http'):
-                return raw
             request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(raw)
+                return request.build_absolute_uri(f'/api/files/{obj.pk}/?download=1')
+            return f'/api/files/{obj.pk}/?download=1'
         return None
 
     def get_display_name(self, obj):
