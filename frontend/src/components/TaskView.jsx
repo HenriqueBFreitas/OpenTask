@@ -1466,7 +1466,7 @@ export default function TasksView() {
       <div
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          height: '100%', color: '#a09d97', fontSize: 14,
+          height: '100%', width: '100%',color: '#a09d97', fontSize: 14,
         }}
       >
         Carregando tarefas...
@@ -1665,7 +1665,7 @@ export default function TasksView() {
                 gap: 12, pointerEvents: 'none',
               }}
             >
-              <div style={{ fontSize: 48, opacity: 0.12, fontWeight: 900, color: '#2c2a26' }}>✓</div>
+              <div style={{ fontSize: 48, opacity: 0.12, fontWeight: 900, color: '#2c2a26' }}></div>
               <span style={{ fontSize: 16, fontWeight: 700, color: '#2c2a26' }}>
                 Nenhuma tarefa neste workspace
               </span>
