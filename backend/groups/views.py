@@ -15,23 +15,19 @@ from .serializers import (
 )
 from core.models import Notification
 
-
 def get_member(user, group):
     try:
         return GroupMember.objects.get(user=user, group=group)
     except GroupMember.DoesNotExist:
         return None
 
-
 def is_admin_or_owner(user, group):
     m = get_member(user, group)
     return m and m.role in ('admin', 'owner')
 
-
 def is_owner(user, group):
     m = get_member(user, group)
     return m and m.role == 'owner'
-
 
 def create_notification(recipient, sender, notif_type, object_id, message):
     Notification.objects.create(
@@ -42,13 +38,7 @@ def create_notification(recipient, sender, notif_type, object_id, message):
         message=message,
     )
 
-
 def can_delete_task(requester, task):
-    """
-    Owner → deleta de todos.
-    Admin → deleta de membros e os próprios. Não deleta de outros admins/owner.
-    Member → só os próprios.
-    """
     if requester.role == 'owner':
         return True
     creator_member = get_member(task.created_by, task.group)
@@ -56,7 +46,6 @@ def can_delete_task(requester, task):
     if requester.role == 'admin':
         return creator_role == 'member' or task.created_by == requester.user
     return task.created_by == requester.user
-
 
 def can_delete_file(requester, group_file):
     if requester.role == 'owner':
@@ -66,7 +55,6 @@ def can_delete_file(requester, group_file):
     if requester.role == 'admin':
         return uploader_role == 'member' or group_file.uploaded_by == requester.user
     return group_file.uploaded_by == requester.user
-
 
 class GroupListCreateView(generics.ListCreateAPIView):
     serializer_class = GroupSerializer
@@ -78,7 +66,6 @@ class GroupListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         group = serializer.save(owner=self.request.user)
         GroupMember.objects.create(group=group, user=self.request.user, role='owner')
-
 
 class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = GroupSerializer
@@ -99,15 +86,7 @@ class GroupDetailView(generics.RetrieveUpdateDestroyAPIView):
             return Response({'error': 'Apenas o owner pode deletar o grupo.'}, status=403)
         return super().destroy(request, *args, **kwargs)
 
-
-
 class GroupPhotoUploadView(APIView):
-    """
-    POST /api/groups/<group_id>/upload-photo/
-    multipart/form-data: photo=<file>
-    Faz upload da foto do grupo no Cloudinary e salva a URL.
-    Apenas owner pode alterar.
-    """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -125,14 +104,7 @@ class GroupPhotoUploadView(APIView):
         group.save(update_fields=['photo_url'])
         return Response({'photo_url': group.photo_url})
 
-
 class GroupBannerUploadView(APIView):
-    """
-    POST /api/groups/<group_id>/upload-banner/
-    multipart/form-data: banner=<file>
-    Faz upload do banner do grupo no Cloudinary e salva a URL.
-    Apenas owner pode alterar.
-    """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
@@ -149,7 +121,6 @@ class GroupBannerUploadView(APIView):
         group.banner_url = result['secure_url']
         group.save(update_fields=['banner_url'])
         return Response({'banner_url': group.banner_url})
-
 
 class SetAdminView(APIView):
     permission_classes = [IsAuthenticated]
@@ -168,7 +139,6 @@ class SetAdminView(APIView):
         member.save()
         return Response(GroupMemberSerializer(member).data)
 
-
 class TransferOwnershipView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -186,7 +156,6 @@ class TransferOwnershipView(APIView):
         group.save()
         return Response({'status': 'ownership transferido'})
 
-
 class LeaveGroupView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -197,7 +166,6 @@ class LeaveGroupView(APIView):
             return Response({'error': 'Transfira o ownership antes de sair.'}, status=400)
         member.delete()
         return Response({'status': 'saiu do grupo'})
-
 
 class KickMemberView(APIView):
     permission_classes = [IsAuthenticated]
@@ -214,17 +182,12 @@ class KickMemberView(APIView):
             return Response({'error': 'Não é possível expulsar o owner.'}, status=400)
         if requester.role == 'admin' and target.role == 'admin':
             return Response({'error': 'Admins só podem expulsar membros.'}, status=403)
+        
+        GroupInvite.objects.filter(group=group, invited_user=target.user).delete()
         target.delete()
         return Response({'status': 'membro expulso'})
 
-
 class GroupMemberFilterView(APIView):
-    """
-    Retorna membros ativos do grupo para popular dropdowns de filtro.
-    ?role=admin|member|owner  → filtra por cargo atual
-    ?user_id=<id>             → retorna só esse membro com cargo atual
-    Membros que saíram/foram expulsos não aparecem.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, group_id):
@@ -244,13 +207,7 @@ class GroupMemberFilterView(APIView):
 
         return Response(GroupMemberFilterSerializer(qs, many=True).data)
 
-
 class GroupUserSearchView(APIView):
-    """
-    Busca usuários por username para convidar ao grupo.
-    ?q=<username>  → retorna id, username, full_name, avatar_url
-    Exclui membros que já estão no grupo.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, group_id):
@@ -274,14 +231,7 @@ class GroupUserSearchView(APIView):
         from friends.serializers import UserSearchSerializer
         return Response(UserSearchSerializer(users, many=True).data)
 
-
 class InviteCreateView(APIView):
-    """
-    Convida um usuário para o grupo.
-    Aceita duas formas no body:
-      - { "invited_user": <user_id> }   → convite pela lista de amigos
-      - { "username": "<username>" }     → convite pela busca por username
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id):
@@ -292,7 +242,6 @@ class InviteCreateView(APIView):
         from django.contrib.auth import get_user_model
         User = get_user_model()
 
-        # Suporta convite por user_id (lista de amigos) ou por username (busca)
         invited_user_id = request.data.get('invited_user')
         username = request.data.get('username')
 
@@ -309,14 +258,28 @@ class InviteCreateView(APIView):
         if GroupMember.objects.filter(group=group, user=invited_user).exists():
             return Response({'error': 'Usuário já é membro do grupo.'}, status=400)
 
-        invite, created = GroupInvite.objects.get_or_create(
-            group=group,
-            invited_user=invited_user,
-            defaults={'invited_by': request.user}
-        )
+        old_invite = GroupInvite.objects.filter(group=group, invited_user=invited_user).first()
+        if old_invite:
+            old_invite.status = 'pending'
+            old_invite.invited_by = request.user
+            old_invite.save()
+            invite = old_invite
+            created = False
+        else:
+            invite = GroupInvite.objects.create(
+                group=group,
+                invited_user=invited_user,
+                invited_by=request.user,
+                status='pending'
+            )
+            created = True
 
         if not created:
-            return Response({'error': 'Convite já enviado.'}, status=400)
+            Notification.objects.filter(
+                notif_type='group_invite',
+                object_id=invite.pk,
+                recipient=invited_user
+            ).delete()
 
         create_notification(
             recipient=invited_user,
@@ -327,7 +290,6 @@ class InviteCreateView(APIView):
         )
 
         return Response(GroupInviteSerializer(invite).data, status=201)
-
 
 class InviteRespondView(APIView):
     permission_classes = [IsAuthenticated]
@@ -357,7 +319,6 @@ class InviteRespondView(APIView):
         ).delete()
 
         return Response(GroupInviteSerializer(invite).data)
-
 
 class GroupTaskListCreateView(generics.ListCreateAPIView):
     serializer_class = GroupTaskSerializer
@@ -390,7 +351,6 @@ class GroupTaskListCreateView(generics.ListCreateAPIView):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('Você não é membro deste grupo.')
         serializer.save(group=group, created_by=self.request.user)
-
 
 class GroupTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = GroupTaskSerializer
@@ -432,7 +392,7 @@ class GroupTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         if not requester or not can_delete_task(requester, task):
             return Response({'error': 'Sem permissão para deletar.'}, status=403)
         return super().destroy(request, *args, **kwargs)
-    
+
 class GroupSubTaskListCreateView(generics.ListCreateAPIView):
     serializer_class = GroupSubTaskSerializer
     permission_classes = [IsAuthenticated]
@@ -446,7 +406,6 @@ class GroupSubTaskListCreateView(generics.ListCreateAPIView):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('Você não é membro deste grupo.')
         serializer.save()
-
 
 class GroupSubTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = GroupSubTaskSerializer
@@ -484,9 +443,7 @@ class GroupSubTaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             return Response({'error': 'Sem permissão.'}, status=403)
         return super().destroy(request, *args, **kwargs)
 
-
 class ShareTaskToGroupView(APIView):
-    """Qualquer membro pode compartilhar uma task pessoal para o grupo."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id, task_id):
@@ -510,17 +467,7 @@ class ShareTaskToGroupView(APIView):
 
         return Response(GroupTaskSerializer(group_task).data, status=201)
 
-
 class GroupFileListCreateView(APIView):
-    """
-    GET  /api/groups/<id>/files/  → lista arquivos do grupo
-    POST /api/groups/<id>/files/  → vincula arquivo existente ao grupo
-    body: { "file": <file_id> }
-
-    Filtros GET:
-      ?user_id=<id>  → arquivos de um usuário específico
-      ?role=<cargo>  → arquivos de membros com esse cargo atual
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, group_id):
@@ -566,12 +513,7 @@ class GroupFileListCreateView(APIView):
 
         return Response(GroupFileSerializer(group_file, context={'request': request}).data, status=201)
 
-
 class GroupFileDetailView(APIView):
-    """
-    GET    /api/groups/<id>/files/<pk>/
-    DELETE /api/groups/<id>/files/<pk>/
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, group_id, pk):
@@ -592,14 +534,7 @@ class GroupFileDetailView(APIView):
         group_file.delete()
         return Response(status=204)
 
-
 class ShareFileToGroupView(APIView):
-    """
-    Qualquer membro pode compartilhar um arquivo pessoal para o grupo.
-    body: { "file": <file_id>, "move": true|false }
-    move=true  → remove o File pessoal
-    move=false → mantém o File pessoal, só vincula ao grupo
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, group_id):
